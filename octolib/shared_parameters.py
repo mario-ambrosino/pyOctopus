@@ -6,9 +6,9 @@ module_last_modified_data = "2020/11/27"
 verbose_mode = True
 
 # Path
-ROOT_PATH = "/home/mario/WS/OCTOPUS/PyOctopus_v.{}".format(module_version)
-DATASET_PATH = not os.path.join(ROOT_PATH, "datasets")
-META_PATH = "export/meta.csv"
+ROOT_PATH = "/home/mario/WS/OCTOPUS/PyOctopus"
+DATASET_PATH = os.path.join(ROOT_PATH, "datasets")
+META_PATH = os.path.join(ROOT_PATH, "export/meta.csv")
 
 # Parameters
 SAMPLING_FREQUENCY = 2000  # Hz

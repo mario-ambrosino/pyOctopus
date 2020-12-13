@@ -9,5 +9,5 @@ setup(
     license='CC0-1.0 License',
     author='mario',
     author_email='mario.ambrosino7@gmail.com',
-    description='PyOctopus API documentation'
+    description='PyOctopus'
     )
