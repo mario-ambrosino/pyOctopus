@@ -20,12 +20,65 @@ def generate_vibration_images():
     -------
 
     """
-    meta = tp.MetaFrame()
+    meta = tp.MetaFrame(path_data = DATASET_PATH, path_meta = META_PATH)
     for identifier, uid in enumerate(meta.UUID):
         X = tp.Octopus.Track(uid)
         print("[{}] # ".format(time.ctime()) + "Acceleration Preprocessing Completed.")
         print("-Data Load Completed.")
         X.plot_accelerations()
+
+
+def automate_score_generation(
+        threshold_set,
+        detection_range_set,
+        e_set,
+        ms_set,
+        cm_set,
+        mode = "grid_search"
+        ):
+    """
+    Automates the generation of scores to evaluate dataset. A first mode proposed is a grid search algorithm. The
+    scores are saved in csv files into the export folder.
+
+    Parameters
+    ----------
+    threshold_set: list
+        A list of floats containing thresholds (cfr. self.test_alignment_score method)
+    detection_range_set: list
+        A list of floats containing detection range (cfr. self.test_alignment_score method)
+    e_set: list
+        A list of ints containing epsilon for DBSCAN (cfr. self.test_alignment_score method)
+    ms_set: list
+        A list of ints containing minimum samles for DBSCAN (cfr. self.test_alignment_score method). To reduce
+        complexity start setting ms_set elements equal to e_sets
+    cm_set: list
+        A list of strings containing metrics to choose in [‘cityblock’, ‘cosine’, ‘euclidean’, ‘l1’, ‘l2’, ‘manhattan’]
+    mode: string
+        Execution mode: actually we're using grid_search but a random_search method is expected soon
+
+    Returns
+    -------
+
+    """
+    if mode == "grid_search":
+        for threshold in threshold_set:
+            for detection_range in detection_range_set:
+                for e in e_set:
+                    for ms in ms_set:
+                        for cm in cm_set:
+                            print("[{}] # ".format(time.ctime())
+                                  + "Parameters:: M: {}.T: {}.D: {}.E: {}.C: {}.M: {}.".format(
+                                    mode, threshold, detection_range, e, ms, cm)
+                                  )
+                            test_alignment_score(
+                                threshold = threshold,
+                                detection_range = detection_range,
+                                plot = False,
+                                export = True,
+                                epsilon = e,
+                                min_samples_cluster = ms,
+                                cluster_metrics = cm,
+                                )
 
 
 def test_alignment_score(threshold: float = 0.7,
@@ -74,7 +127,7 @@ def test_alignment_score(threshold: float = 0.7,
 
     """
     score_list = []
-    meta = tp.MetaFrame()
+    meta = tp.MetaFrame(path_data = DATASET_PATH, path_meta = META_PATH)
     X = None
     print("[{}] # ".format(time.ctime()) + "Score Generator Helper started.")
     for identifier, uid in enumerate(meta.UUID):
@@ -84,12 +137,12 @@ def test_alignment_score(threshold: float = 0.7,
                 X.anomaly_cluster[side][sensor]["Error_X"] = detection_range
                 # North&South Side anomaly detection & z-score
                 print("[{}] # ".format(time.ctime()) + "Sensor:{}/4 - Side:{}".format(sensor + 1, side))
-                X.get_anomalies(side=side, sensor=sensor, threshold=threshold)
+                X.get_anomalies(side = side, sensor = sensor, threshold = threshold)
         print("[{}] # ".format(time.ctime()) + "Anomaly Detection completed.")
-        X.get_anomaly_clusters(eps=epsilon,
-                               min_samples=min_samples_cluster,
-                               metric=cluster_metrics)
-        X.evaluate_prediction(error_length=detection_range)
+        X.get_anomaly_clusters(eps = epsilon,
+                               min_samples = min_samples_cluster,
+                               metric = cluster_metrics)
+        X.evaluate_prediction(error_length = detection_range)
         for side in X.sides:
             for sensor in range(4):
                 score_list.append(
@@ -98,26 +151,34 @@ def test_alignment_score(threshold: float = 0.7,
                      X.anomaly_cluster[side][sensor]["performance"][0],
                      X.anomaly_cluster[side][sensor]["performance"][1],
                      X.anomaly_cluster[side][sensor]["performance"][2],
-                     X.anomaly_cluster[side][sensor]["Error_X"],
+                     threshold,
+                     detection_range,
+                     epsilon,
+                     min_samples_cluster,
+                     cluster_metrics,
                      )
                     )
-        X.plot_clusters()
     if plot:
+        X.plot_clusters()
         X.plot_scores()
         print("[{}] # ".format(time.ctime()) + "Scores Plot completed.")
 
     if export:
         # Generate Lists
         columns = ("UUID", "Train", "Direction", "Speed", "Num_Trip", "Component", "Side", "Sensor",
-                   "Cluster Centroids", "PD", "ED", "PFA", "Error_X")
-        export_df = pd.DataFrame(score_list, columns=columns)
-        export_df.to_csv("export/scores_{}.csv".format(threshold))
+                   "Cluster Centroids", "PD", "ED", "PFA", "Error_X", "Detection_Range", "Epsilon",
+                   "Min_Samples_Cluster", "Cluster_Metrics")
+        export_df = pd.DataFrame(score_list, columns = columns)
+        export_df.to_csv(
+            "export/scores_T{}_D{}_E{}_C{}_M{}.csv".format(threshold, detection_range, epsilon, min_samples_cluster,
+                                                           cluster_metrics, )
+            )
     print("[{}] # ".format(time.ctime()) + "Score Generator Helper completed.")
 
 
-def generate_shifts(export=True):
+def generate_shifts(export = True):
     dict_shifts = {}
-    meta = tp.MetaFrame()
+    meta = tp.MetaFrame(path_data = DATASET_PATH, path_meta = META_PATH)
     for identifier, uid in enumerate(meta.UUID):
         try:
             X = tp.Octopus.Track(uid)
