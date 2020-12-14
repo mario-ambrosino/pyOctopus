@@ -267,7 +267,7 @@ class MetaFrame:
 
         return pd.DataFrame(file_list, columns = column_names)
 
-    def export_metaframe(self, name = "meta"):
+    def export_metaframe(self, name):
         """
         Access recursively to all the content of the folder and extracts DataFrame from each of the subfolders,
         merging after all the frame-frame in a unique one.
@@ -289,7 +289,7 @@ class MetaFrame:
         meta_frame = pd.concat(list_meta)
         meta_frame.to_csv("export/{}.csv".format(name), index = False)
 
-    def __init__(self, path_meta = param.META_PATH, path_data = param.DATASET_PATH):
+    def __init__(self, path_meta, path_data):
         """
         At execution of given modules, check if all works and prints credits, then loads the meta-frame.
         # TODO: include setup.py and environment check.
@@ -323,7 +323,7 @@ class MetaFrame:
             self.frame = pd.read_csv(str(self.path))
         print("[{}] # ".format(time.ctime()) + "Init Completed.")
 
-    def __call__(self, uid = None, value = "ID"):
+    def __call__(self, uid, value):
         """
         On call of the metaframe, give a selected value with a given UUID equal to "uid" and with a column equal to
         "value".
