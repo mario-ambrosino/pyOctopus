@@ -6,7 +6,7 @@ module_last_modified_data = "2020/12/14"
 verbose_mode = True
 
 # Path
-ROOT_PATH = "."
+ROOT_PATH = ""
 DATASET_PATH = os.path.join(ROOT_PATH, "datasets")
 META_PATH = os.path.join(ROOT_PATH, "export/meta.csv")
 
