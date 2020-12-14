@@ -12,22 +12,6 @@ octolib.helper module
    :undoc-members:
    :show-inheritance:
 
-octolib.req\_modules module
----------------------------
-
-.. automodule:: octolib.req_modules
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-octolib.setup module
---------------------
-
-.. automodule:: octolib.setup
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 octolib.shared\_parameters module
 ---------------------------------
 
