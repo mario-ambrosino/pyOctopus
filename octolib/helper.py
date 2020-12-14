@@ -2,284 +2,30 @@
 Helper Routine: High-Level API to use pyOctopus functionality.
 """
 
-import json
 # System Methods
-import re
 import time
-import uuid
-# Warning Clean-up
 import warnings
-import zipfile
-from functools import reduce
-
-import numpy as np
-# Data Manipulation Libraries
 import pandas as pd
-# Fourier and Wavelet Libraries
-from numpy.fft import *
 
 # Graphic Import
 warnings.filterwarnings('ignore')
-
 from octolib.shared_parameters import *
 import octolib.trip as tp
 
 
-def cross_correlation_using_fft(x, y):
-    f1 = fft(x)
-    f2 = fft(np.flipud(y))
-    cc = np.real(ifft(f1 * f2))
-    return fftshift(cc)
-
-
-def get_directory_structure(input_path):
-    """
-    Creates a nested dictionary that represents the folder structure of input_path. Needed for the execution of the
-    dataframe generator.
-
-    Parameters
-    ----------
-    input_path: (string) The path to analyze
-
-    Returns
-    -------
-    directory: (dict) The dictionary which maps the information about the folder
-
-    """
-    directory = {}
-    input_path = input_path.rstrip(os.sep)
-    start = input_path.rfind(os.sep) + 1
-    for path, dirs, files in os.walk(input_path):
-        folders = path[start:].split(os.sep)
-        subdir = dict.fromkeys(files)
-        parent = reduce(dict.get, folders[:-1], directory)
-        parent[folders[-1]] = subdir
-    return directory
-
-
-def extract_data(input_path, output_path):
-    """
-    Given a zipped dataset, extract it in output_path.
-    Parameters
-    ----------
-    input_path: string
-        The path of the zip file to be extracted
-    output_path: string
-        The path of the target folder for the extraction
-
-    Returns
-    -------
-
-    """
-    with zipfile.ZipFile(input_path, 'r') as zip_ref:
-        zip_ref.extractall(output_path)
-        zip_ref.close()
-
-
-def generate_metadata(data_path=None):
-    """
-    Given a data_path, it extracts meta-data contained into it and construct a pandas DataFrame which contains
-    every information about it. It should follow the convention chosen in the first release of datasets from IVM
-    Parameters
-    ----------
-    data_path: string
-        The path of the root folder for the data.
-
-    Returns
-    -------
-    metaframe: Pandas.DataFrame
-        The dataframe which holds meta-data about datasets contained in data_path folder.
-
-    """
-    directory_structure = get_directory_structure(input_path=data_path)
-
-    file_list = []
-    # Access recursively the directory tree
-    for dataset in directory_structure.keys():
-        for direction in directory_structure[dataset].keys():
-            for train in directory_structure[dataset][direction].keys():
-                for speed_category in directory_structure[dataset][direction][train].keys():
-                    for item in list(directory_structure[dataset][direction][train][speed_category].keys()):
-                        meta_data = item.rsplit("_")
-                        if meta_data[0] == "Rettilineo":
-                            # Load dataset feature from filename (meta_data object)
-                            # Directional Component
-                            component = meta_data[1]
-                            # Number of trip with the same features (e.g. speed class, engine status etc.)
-                            num_trip = meta_data[2][-1]
-                            # Engine Status Feature
-                            engine_specs = meta_data[2][:-1]
-                            engine_status = "N/D"
-                            if engine_specs == speed_category:
-                                engine_status = None
-                            elif engine_specs == "F" + speed_category:
-                                engine_status = "F"
-                            elif engine_specs == "FF" + speed_category:
-                                engine_status = "FF"
-                            # Load Path related to "Rettilineo" file, either if the corresponding files doesn't exist
-                            # Acceleration Matrix Path
-                            accel_path = "{}/{}/{}/{}/Rettilineo_{}_{}{}_{}.txt".format(
-                                data_path, direction, train, speed_category, component, engine_specs, num_trip, train)
-                            # Count rows in Acceleration file
-                            num_accel = sum(1 for _ in open(accel_path))
-                            # Speed Matrix Path
-                            vel_path = "{}/{}/{}/Profili delle velocità/Vel_{}_{}{}.txt".format(
-                                data_path, direction, train, train, engine_specs, num_trip)
-                            # Count rows in Speed file
-                            num_vel = sum(1 for _ in open(vel_path))
-                            # Check if there is discrepancy in the acceleration and speed files.
-                            vel_acc_discrepancy = num_accel - num_vel
-                            # TODO IMPUTATION STRATEGY for speed when discrepancy occurs
-                            # Scores for each bearings_labels (algorithm computation results)
-                            score_path = "{}/{}/{}/{}/Scores_{}_{}{}_{}.txt".format(
-                                data_path, direction, train, speed_category, component, engine_specs, num_trip, train)
-                            # Unified Score (algorithm computation results)
-                            uscore_path = "{}/{}/{}/{}/UnifiedScore_{}_{}{}_{}.txt".format(
-                                data_path, direction, train, speed_category, component, engine_specs, num_trip, train)
-                            # Ground Truth JSON file from IVM. It has the following structure:
-                            #
-                            # {
-                            #     "Bearing_Columns" : [5,6,7,8,9,10,11,12],
-                            #     "Reference_Bearing" : 12,
-                            #     "Weldings" : [15217, 32697, 50208, 67956, 85588, 103145, 120809, 138461],
-                            #     "Wheel_Fault" : True
-                            # }
-                            #
-                            gt_path = "{}/{}/{}/{}/GT_{}{}_{}.txt".format(
-                                data_path, direction, train, speed_category, engine_specs, num_trip, train)
-
-                            # Init column
-                            accel_columns = None
-                            reference_Bearing = None
-                            weldings = None
-                            is_wheel_defective = None
-
-                            try:
-                                json_file = open(gt_path)
-                                gt_raw = json_file.read()
-                                # Clean file from human errors (i introduced too much special characters,
-                                # the parser was angry with me)
-                                gt_raw = re.sub(
-                                    '\n', '', re.sub(
-                                        '\t', '', re.sub(
-                                            ' ', '', gt_raw
-                                            ).strip()
-                                        ).strip()
-                                    ).strip()
-                                gt_raw = re.sub('False', '"False"', gt_raw)
-                                gt_raw = re.sub('True', '"True"', gt_raw)
-                                ground_truth = json.loads(gt_raw)
-                                reference_Bearing = ground_truth["Reference_Bearing"]
-                                accel_columns = str(ground_truth["Bearing_Columns"])
-                                weldings = str(ground_truth["Weldings"])
-                                is_wheel_defective = ground_truth["Wheel_Fault"]
-                                json_file.close()
-                            except IOError:
-                                print("[{}] -".format(time.ctime()) + "File {} not accessible".format(gt_path))
-
-                            # SCORE INCLUSION
-                            N_shifts_path = "{}/{}/{}/{}/N_Shifts_{}_{}{}_{}.txt".format(
-                                data_path, direction, train, speed_category, component, engine_specs, num_trip, train)
-                            S_shifts_path = "{}/{}/{}/{}/S_Shifts_{}_{}{}_{}.txt".format(
-                                data_path, direction, train, speed_category, component, engine_specs, num_trip, train)
-                            N_shifts = None
-                            S_shifts = None
-                            try:
-                                N_shifts_file = open(N_shifts_path)
-                                S_shifts_file = open(S_shifts_path)
-
-                                N_shifts = N_shifts_file.read()
-                                N_shifts = re.sub(
-                                    '\n', '', re.sub(
-                                        '\t', '', re.sub(
-                                            ' ', '', N_shifts
-                                            ).strip()
-                                        ).strip()
-                                    ).strip()
-                                S_shifts = S_shifts_file.read()
-                                S_shifts = re.sub(
-                                    '\n', '', re.sub(
-                                        '\t', '', re.sub(
-                                            ' ', '', S_shifts
-                                            ).strip()
-                                        ).strip()
-                                    ).strip()
-                            except IOError:
-                                print("[{}] -".format(time.ctime()) + "Shift File not accessible")
-
-                            processed_item = [uuid.uuid4(), dataset, direction, train, speed_category, component,
-                                              num_trip,
-                                              engine_status, accel_path, vel_path, score_path, uscore_path,
-                                              (engine_status == "0") or (engine_status == "2"),
-                                              (engine_status == "0") or (engine_status == "1"), num_accel, num_vel,
-                                              vel_acc_discrepancy, reference_Bearing, accel_columns, weldings,
-                                              is_wheel_defective, N_shifts, S_shifts]
-                            file_list.append(processed_item)
-
-    column_names = ["ID", "Dataset", "Direction", "Train", "Avg_Speed", "Component", "Num_Trip", "Engine_Status",
-                    "Accel_Path", "Vel_Path", "Scores_Path", "UnifiedScore_Path", "is_ABU-B_enabled",
-                    "is_ABU-A_enabled", "N_acc", "N_vel", "N_discrepance", "Reference_Bearing", "Bearing_Columns",
-                    "Weldings", "Wheel_Fault", "N_Shifts", "S_Shifts"]
-
-    return pd.DataFrame(file_list, columns=column_names)
-
-
-def generate_metaframe(folder=None, name="meta"):
-    """
-    Access recursively to all the content of the folder and extracts meta-frame from each of the subfolders,
-    merging after all the meta-frame in a unique one.
-
-    Parameters
-    ----------
-    folder: the root director
-    name: string
-        Name of the csv file to be exported.
-
-    Returns
-    -------
-
-    """
-    list_meta = []
-    for index, data_folder in enumerate(os.listdir(folder)):
-        print(index, data_folder)
-        list_meta.append(generate_metadata(data_path="{}/{}".format(folder, data_folder)))
-    meta_frame = pd.concat(list_meta)
-    meta_frame.to_csv("export/{}.csv".format(name), index=False)
-
-
-def test_init(ID: int = 23):
-    """
-    Simple Loader for test purpose. It helps to load quickly a dataset indexed by a simple integer ID in a meta-frame
-    already loaded
-    Parameters
-    ----------
-    ID: int
-        Index in the meta-frame file into the tp.meta_frame attribute
-
-    Returns
-    -------
-    a Octopus.Track object containing the data in the dataset labelled with ID
-
-    """
-    identifier = ID
-    UUID = tp.meta_frame["ID"]
-    return tp.Octopus.Track(UUID[identifier])
-
-
 def generate_vibration_images():
     """
-    Generate Vibration Images with aligned track for all the item in the meta-frame, with weldings in black.
+    Generate Vibration Images with aligned track for all the item in the frame-frame, with weldings in black.
     Returns
     -------
 
     """
-    UUID = tp.meta_frame["ID"]
-    for identifier, uid in enumerate(UUID):
-        X = tp.Octopus.Track(UUID[identifier])
+    meta = tp.MetaFrame()
+    for identifier, uid in enumerate(meta.UUID):
+        X = tp.Octopus.Track(uid)
         print("[{}] # ".format(time.ctime()) + "Acceleration Preprocessing Completed.")
         print("-Data Load Completed.")
         X.plot_accelerations()
-        # X.plot_unsorted_accelerations()
 
 
 def test_alignment_score(threshold: float = 0.7,
@@ -301,7 +47,7 @@ def test_alignment_score(threshold: float = 0.7,
      - extract anomalous-SAWP index slices
      - cluster them with DBSCAN
      - check if the nearest cluster to a given weldings has a space distance which is lesser then detection_range
-     - export the meta-data and score in a score file.
+     - export the frame-data and score in a score file.
 
     Parameters
     ----------
@@ -328,10 +74,11 @@ def test_alignment_score(threshold: float = 0.7,
 
     """
     score_list = []
-    UUID = tp.meta_frame["ID"]
+    meta = tp.MetaFrame()
+    X = None
     print("[{}] # ".format(time.ctime()) + "Score Generator Helper started.")
-    for identifier, uid in enumerate(UUID):
-        X = tp.Octopus.Track(UUID[identifier])
+    for identifier, uid in enumerate(meta.UUID):
+        X = tp.Octopus.Track(uid)
         for side in X.sides:
             for sensor in range(4):
                 X.anomaly_cluster[side][sensor]["Error_X"] = detection_range
@@ -370,16 +117,16 @@ def test_alignment_score(threshold: float = 0.7,
 
 def generate_shifts(export=True):
     dict_shifts = {}
-    UUID = tp.meta_frame["ID"]
-    for identifier, uid in enumerate(UUID):
+    meta = tp.MetaFrame()
+    for identifier, uid in enumerate(meta.UUID):
         try:
-            X = tp.Octopus.Track(UUID[identifier])
+            X = tp.Octopus.Track(uid)
             print("-Data Load Completed.")
             N_shifts, S_shifts = X.shift_sync_signals()
             print("Shift Evaluated:\nN:{}\nS:{}".format(N_shifts, S_shifts))
             dict_shifts[uid] = [N_shifts, S_shifts]
         except IndexError:
-            print("[{}] # ".format(time.ctime()) + "Index out of range - Error for track {}".format(UUID[identifier]))
+            print("[{}] # ".format(time.ctime()) + "Index out of range - Error for track {}".format(uid))
     if export:
         out_file = open("shifts.txt", "w")
         out_file.write(str(dict_shifts))

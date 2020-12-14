@@ -1,73 +1,69 @@
 """
-PyOctopus.trip Module: Class container for OCTOPUS project.
+
 """
 
+import json
+import os
+# Standard Libraries
+import re
 import time
-# Warning Clean-up
-import warnings
+import uuid
 
 import numpy as np
-# Data Manipulation Libraries
 import pandas as pd
-# Graphic Import
 import plotly.graph_objects as go
-# Fourier and Wavelet Libraries
 import pywt
 from plotly.subplots import make_subplots
-from scipy.signal import correlate as corr
-
-# System Methods
-warnings.filterwarnings('ignore')
-
-from . import shared_parameters as param
 from sklearn.cluster import DBSCAN
 
-meta_frame = None
+# Local environment
+from . import shared_parameters as param
 
 
-def init():
+def skiprow_logic(index, start, end, step = 1):
     """
-    At execution of given modules, check if all works and prints credits.
-    # TODO: Load error handling for lack of requirements and automate setup init suggestion.
-    :return: meta_df: a dataframe which contains all reference about our project.
+    Function lambidified in pandas.read_csv() method to select certain slice of data
+    Parameters
+    ----------
+    index: int
+        the column chosen. It is the main argument of skiprow_logic lambda function
+    start: int
+        iloc starting position of the DataFrame
+    end: int
+        iloc end position of the DataFrame
+    step: int
+        iloc gap between iloc index of the DataFrame
+
+    Returns
+    -------
+    isSkipped: bool
+        if the item should be skipped or not.
     """
-    if param.verbose_mode:
-        print("[{}] # ".format(time.ctime()) + "# Loading PyOctopus Trip Module")
-        print("# OCTOLIB_VERSION = {} - REFACTORED VERSION".format(param.module_version))
-        print("# LAST_MODIFIED = {}".format(param.module_last_modified_data))
-        print("# pyOctopus @ Octopus Project - MARIO AMBROSINO")
-
-    # Metadata Dataframe Upload
-    try:
-        meta_df = pd.read_csv(str(param.META_PATH))
-    except FileNotFoundError:
-        print("[{}] # ".format(time.ctime()) + "Warning - Meta-frame not found.")
-        print("[{}] # ".format(time.ctime()) +
-              "Alternative Route -> Generate Meta-frame from {} folder".format(param.DATASET_PATH))
-        from octolib.helper import generate_metaframe
-        generate_metaframe()
-        meta_df = pd.read_csv(str(param.META_PATH))
-    print("[{}] # ".format(time.ctime()) + "Init Completed.")
-    return meta_df
+    # please note: implicit skipping of header in dataset
+    if index in range(start, end, step):
+        return False
+    else:
+        return True
 
 
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-
-def signal_sync(reference, signal):
+# UGLY WORKAROUND TO GET AWAY WITH DIFFERENT SEPARATORS
+def separator_parser(dataset):
     """
-    Returns the optimal shift to maximize correlation
-    between reference signal and the analyzed signal
-    to be shifted.
+    Provides a way to parse dataset with different separators
+    Parameters
+    ----------
+    dataset: str
+        the name of the root folder, related to the dataset
 
-    :param reference: Leading (static) signal
-    :param signal: Signal to be shifted
-    :return: the shift for signal
+    Returns
+    -------
+    separator: str
+        the separator character
     """
-    corr_data = corr(reference, signal)
-    shift = np.argmax(corr_data)
-    return shift - int(len(corr_data) / 2)
+    if dataset == "Santa_Maria_a_Vico":
+        return "\t"
+    elif dataset == "Estratto_Rettilineo_AR":
+        return " "
 
 
 def naive_integration(data):
@@ -80,25 +76,297 @@ def naive_integration(data):
     return pd.DataFrame(np.cumsum(data)).to_numpy()
 
 
-def uuid_to_value(uid=None, value=None, meta=None):
-    """ Given UUID, gives the relative accel_path """
-    return meta[meta["ID"] == uid][value].values[0]
+class MetaFrame:
+    """
+    Class containing MetaFrame methods - it enables to access in a viable way all the elements in the dataset folder
+    without knowing which is the structure.
 
+    TODO: transform this class in a Singleton Class
+    """
 
-def skiprow_logic(index, start, end, step=1):
-    # please note: implicit skipping of header in dataset
-    if index in range(start, end, step):
-        return False
-    else:
-        return True
+    @staticmethod
+    def get_directory_structure(data_folder_path):
+        """
+        Creates a nested dictionary that represents the folder structure of input_path. Needed for the execution of the
+        dataframe generator.
 
+        Parameters
+        ----------
+        data_folder_path: (string) The path to analyze
 
-# UGLY WORKAROUND TO GET AWAY WITH DIFFERENT SEPARATORS
-def separator_parser(dataset):
-    if dataset == "Santa_Maria_a_Vico":
-        return "\t"
-    elif dataset == "Estratto_Rettilineo_AR":
-        return " "
+        Returns
+        -------
+        directory: (dict) The dictionary which maps the information about the folder
+
+        """
+        from functools import reduce
+        directory = {}
+        input_path = data_folder_path.rstrip(os.sep)
+        start = input_path.rfind(os.sep) + 1
+        for path, dirs, files in os.walk(input_path):
+            folders = path[start:].split(os.sep)
+            subdir = dict.fromkeys(files)
+            parent = reduce(dict.get, folders[:-1], directory)
+            parent[folders[-1]] = subdir
+        return directory
+
+    def get_metadata(self, data_folder_path):
+        """
+        Given a data_path, it extracts frame-data contained into it and construct a pandas DataFrame which contains
+        every information about it. It should follow the convention chosen in the first release of datasets from IVM
+        Parameters
+        ----------
+        data_folder_path: string
+            Folder path for data.
+
+        Returns
+        -------
+        metaframe: Pandas.DataFrame
+            The dataframe which holds frame-data about datasets contained in data_path folder.
+
+        """
+        directory_structure = self.get_directory_structure(data_folder_path)
+
+        file_list = []
+        # Access recursively the directory tree
+        for dataset in directory_structure.keys():
+            for direction in directory_structure[dataset].keys():
+                for train in directory_structure[dataset][direction].keys():
+                    for speed_category in directory_structure[dataset][direction][train].keys():
+                        for item in list(directory_structure[dataset][direction][train][speed_category].keys()):
+                            meta_data = item.rsplit("_")
+                            if meta_data[0] == "Rettilineo":
+                                # Load dataset feature from filename (meta_data object)
+                                # Directional Component
+                                component = meta_data[1]
+                                # Number of trip with the same features (e.g. speed class, engine status etc.)
+                                num_trip = meta_data[2][-1]
+                                # Engine Status Feature
+                                engine_specs = meta_data[2][:-1]
+                                engine_status = "N/D"
+                                if engine_specs == speed_category:
+                                    engine_status = None
+                                elif engine_specs == "F" + speed_category:
+                                    engine_status = "F"
+                                elif engine_specs == "FF" + speed_category:
+                                    engine_status = "FF"
+
+                                # Acceleration Matrix Path
+                                accel_path = "{}/{}/{}/{}/Rettilineo_{}_{}{}_{}.txt".format(
+                                    data_folder_path, direction, train, speed_category, component, engine_specs,
+                                    num_trip,
+                                    train)
+                                # Count rows in Acceleration file
+                                num_accel = sum(1 for _ in open(accel_path))
+                                # Speed Matrix Path
+                                vel_path = "{}/{}/{}/Profili delle velocità/Vel_{}_{}{}.txt".format(
+                                    data_folder_path, direction, train, train, engine_specs, num_trip)
+                                # Count rows in Speed file
+                                num_vel = sum(1 for _ in open(vel_path))
+                                # Check if there is discrepancy in the acceleration and speed files.
+                                vel_acc_discrepancy = num_accel - num_vel
+                                # TODO IMPUTATION STRATEGY for speed when discrepancy occurs
+                                # Scores for each bearings_labels (algorithm computation results)
+                                score_path = "{}/{}/{}/{}/Scores_{}_{}{}_{}.txt".format(
+                                    data_folder_path, direction, train, speed_category, component, engine_specs,
+                                    num_trip,
+                                    train)
+                                # Unified Score (algorithm computation results)
+                                uscore_path = "{}/{}/{}/{}/UnifiedScore_{}_{}{}_{}.txt".format(
+                                    data_folder_path, direction, train, speed_category, component, engine_specs,
+                                    num_trip,
+                                    train)
+                                # Ground Truth JSON file from IVM. It has the following structure:
+                                #
+                                # {
+                                #     "Bearing_Columns" : [5,6,7,8,9,10,11,12],
+                                #     "Reference_Bearing" : 12,
+                                #     "Weldings" : [15217, 32697, 50208, 67956, 85588, 103145, 120809, 138461],
+                                #     "Wheel_Fault" : True
+                                # }
+                                #
+                                gt_path = "{}/{}/{}/{}/GT_{}{}_{}.txt".format(
+                                    data_folder_path, direction, train, speed_category, engine_specs, num_trip, train)
+
+                                # Init column
+                                accel_columns = None
+                                reference_Bearing = None
+                                weldings = None
+                                is_wheel_defective = None
+
+                                try:
+                                    json_file = open(gt_path)
+                                    gt_raw = json_file.read()
+                                    # Clean file from human errors (i introduced too much special characters,
+                                    # the parser was angry with me)
+                                    gt_raw = re.sub(
+                                        '\n', '', re.sub(
+                                            '\t', '', re.sub(
+                                                ' ', '', gt_raw
+                                                ).strip()
+                                            ).strip()
+                                        ).strip()
+                                    gt_raw = re.sub('False', '"False"', gt_raw)
+                                    gt_raw = re.sub('True', '"True"', gt_raw)
+                                    ground_truth = json.loads(gt_raw)
+                                    reference_Bearing = ground_truth["Reference_Bearing"]
+                                    accel_columns = str(ground_truth["Bearing_Columns"])
+                                    weldings = str(ground_truth["Weldings"])
+                                    is_wheel_defective = ground_truth["Wheel_Fault"]
+                                    json_file.close()
+                                except IOError:
+                                    print("[{}] -".format(time.ctime()) + "File {} not accessible".format(gt_path))
+
+                                # SCORE INCLUSION
+                                N_shifts_path = "{}/{}/{}/{}/N_Shifts_{}_{}{}_{}.txt".format(
+                                    data_folder_path, direction, train, speed_category, component, engine_specs,
+                                    num_trip,
+                                    train)
+                                S_shifts_path = "{}/{}/{}/{}/S_Shifts_{}_{}{}_{}.txt".format(
+                                    data_folder_path, direction, train, speed_category, component, engine_specs,
+                                    num_trip,
+                                    train)
+                                N_shifts = None
+                                S_shifts = None
+                                try:
+                                    N_shifts_file = open(N_shifts_path)
+                                    S_shifts_file = open(S_shifts_path)
+
+                                    N_shifts = N_shifts_file.read()
+                                    N_shifts = re.sub(
+                                        '\n', '', re.sub(
+                                            '\t', '', re.sub(
+                                                ' ', '', N_shifts
+                                                ).strip()
+                                            ).strip()
+                                        ).strip()
+                                    S_shifts = S_shifts_file.read()
+                                    S_shifts = re.sub(
+                                        '\n', '', re.sub(
+                                            '\t', '', re.sub(
+                                                ' ', '', S_shifts
+                                                ).strip()
+                                            ).strip()
+                                        ).strip()
+                                except IOError:
+                                    print("[{}] -".format(time.ctime()) + "Shift File not accessible")
+
+                                processed_item = [uuid.uuid4(), dataset, direction, train, speed_category, component,
+                                                  num_trip,
+                                                  engine_status, accel_path, vel_path, score_path, uscore_path,
+                                                  (engine_status == "0") or (engine_status == "2"),
+                                                  (engine_status == "0") or (engine_status == "1"), num_accel, num_vel,
+                                                  vel_acc_discrepancy, reference_Bearing, accel_columns, weldings,
+                                                  is_wheel_defective, N_shifts, S_shifts]
+                                file_list.append(processed_item)
+
+        column_names = ["ID", "Dataset", "Direction", "Train", "Avg_Speed", "Component", "Num_Trip", "Engine_Status",
+                        "Accel_Path", "Vel_Path", "Scores_Path", "UnifiedScore_Path", "is_ABU-B_enabled",
+                        "is_ABU-A_enabled", "N_acc", "N_vel", "N_discrepance", "Reference_Bearing", "Bearing_Columns",
+                        "Weldings", "Wheel_Fault", "N_Shifts", "S_Shifts"]
+
+        return pd.DataFrame(file_list, columns = column_names)
+
+    def export_metaframe(self, name = "meta"):
+        """
+        Access recursively to all the content of the folder and extracts DataFrame from each of the subfolders,
+        merging after all the frame-frame in a unique one.
+
+        Parameters
+        ----------
+        name: string
+            Name of the csv file to be exported.
+
+        Returns
+        -------
+        Nothing - works directly on self object.
+
+        """
+        list_meta = []
+        for index, data_folder in enumerate(os.listdir(self.data)):
+            print(index, data_folder)
+            list_meta.append(self.get_metadata(data_folder_path = "{}/{}".format(self.data, data_folder)))
+        meta_frame = pd.concat(list_meta)
+        meta_frame.to_csv("export/{}.csv".format(name), index = False)
+
+    def __init__(self, path_meta = param.META_PATH, path_data = param.DATASET_PATH):
+        """
+        At execution of given modules, check if all works and prints credits, then loads the meta-frame.
+        # TODO: include setup.py and environment check.
+
+        Parameters
+        ----------
+        path_meta: str
+            Path string to meta file
+        path_data: str
+            Path string to data file
+
+        """
+        if param.verbose_mode:
+            print("[{}] # ".format(time.ctime()) + "# Loading PyOctopus Trip Module")
+            print("# OCTOLIB_VERSION = {} - REFACTORED VERSION".format(param.module_version))
+            print("# LAST_MODIFIED = {}".format(param.module_last_modified_data))
+            print("# pyOctopus @ Octopus Project - MARIO AMBROSINO")
+        self.data = path_data
+        self.path = path_meta
+        # Metadata Dataframe Uploaddata
+        try:
+            self.frame = pd.read_csv(self.path)
+            self.columns = self.frame.columns
+            self.UUID = self.frame["ID"].values
+            self.num_datasets = len(self.frame.index)
+        except FileNotFoundError:
+            print("[{}] # ".format(time.ctime()) + "Warning - Meta-frame not found.")
+            print("[{}] # ".format(time.ctime()) +
+                  "Alternative Route -> Generate Meta-frame from {} folder".format(param.DATASET_PATH))
+            self.export_metaframe()
+            self.frame = pd.read_csv(str(self.path))
+        print("[{}] # ".format(time.ctime()) + "Init Completed.")
+
+    def __call__(self, uid = None, value = "ID"):
+        """
+        On call of the metaframe, give a selected value with a given UUID equal to "uid" and with a column equal to
+        "value".
+        Parameters
+        ----------
+        uid: str, int
+             a UUID identifier from the meta-frame;
+        value: str
+             the column identier belonging to self.columns;
+
+        Returns
+        -------
+        meta-data:
+             the value stored into the meta-frame.
+
+        """
+        if isinstance(uid, str) and isinstance(value, str):
+            if uid in self.UUID and value in self.columns:
+                # return column with the given "item" feature
+                return self.frame.loc[self.UUID == uid][value].values[0]
+        if isinstance(uid, int) and isinstance(value, str):
+            if uid in range(self.num_datasets) and value in self.columns:
+                return self.frame[value].iloc[uid]
+        else:
+            print(
+                "[{}] # ".format(time.ctime()) +
+                "# ERROR: Wrong access to meta-frame ID:{}. VALUE:{}".format(uid, value)
+                )
+
+    def __getitem__(self, item):
+        if isinstance(item, str):
+            if item in self.columns:
+                # return column with the given "item" feature
+                return self.frame[item]
+            else:
+                print("[{}] # ".format(time.ctime()) + "# ERROR: Wrong attribute chosen: {}".format(item))
+                pass  # TODO raise exception for wrong choice in column and adopt a proper behaviour
+        if isinstance(item, int):
+            if item in range(self.num_datasets):
+                return self.frame.iloc[item]
+            else:
+                print("[{}] # ".format(time.ctime()) + "# ERROR: Out of Index".format(item))
+                pass  # TODO raise exception for wrong choice in column and adopt a proper behaviour
 
 
 # Trip Class
@@ -111,16 +379,16 @@ class Octopus:
             :param value: column name of the value to extract
             :return: string file containing the value
             """
-            return str(uuid_to_value(uid=self.uuid, value=value))
+            return str(self.meta(uid = self.uuid, value = value))
 
-        def extract_list(self, value, sep=","):
+        def extract_list(self, value, sep = ","):
             """
             Extract list from dataframe with fixed uuid
             :param value: column name of the value to extract
             :param sep: list separator
             :return: list extracted from metaframe
             """
-            return [int(s) for s in (uuid_to_value(uid=self.uuid, value=value))[1:-1].split(sep)]
+            return [int(s) for s in (self.meta(uid = self.uuid, value = value))[1:-1].split(sep)]
 
         def __init__(self, uid):
             """
@@ -129,7 +397,7 @@ class Octopus:
             """
             # unique universal identifier for the given dataset
             self.uuid = str(uid)
-
+            self.meta = MetaFrame()
             # Trip metadata
             self.dataset = self.extract_item("Dataset")
             self.train = self.extract_item("Train")
@@ -149,13 +417,13 @@ class Octopus:
 
             if self.dataset == "Estratto_Rettilineo_AR":
                 # Ground_Truth values by IVM
-                self.weldings = np.array(self.extract_list(value="Weldings", sep=", "))
-                self.bearing_columns = self.extract_list(value="Bearing_Columns", sep=", ")
+                self.weldings = np.array(self.extract_list(value = "Weldings", sep = ", "))
+                self.bearing_columns = self.extract_list(value = "Bearing_Columns", sep = ", ")
                 self.reference_bearing = param.reference_dict[self.train][self.direction]
                 self.is_wheel_faulty = self.extract_item("Wheel_Fault")
 
     class Track(Trip):
-        def __init__(self, uid, start=0, stop=-1, pos_zero=864):
+        def __init__(self, uid, start = 0, stop = -1, pos_zero = 864):
             """
             Track Class, used to select a slice of a specific dataset.
             :param uid: the unique identifier to select a specific dataset
@@ -175,7 +443,8 @@ class Octopus:
             self.accel = self.get_acceleration()
             self.pos_zero = pos_zero
             self.position = self.get_avg_previous_pos() + naive_integration(self.vel / param.SAMPLING_FREQUENCY)
-            self.time = np.linspace(start=start, stop=stop, num=int(self.num_samples / param.SAMPLING_FREQUENCY))
+            self.time = np.linspace(start = start, stop = stop,
+                                    num = int(self.num_samples / param.SAMPLING_FREQUENCY))
 
             # Permutation Map
             self.permutation_sensors = self.get_dict_direction()
@@ -200,7 +469,8 @@ class Octopus:
             self.positions = {side: {sensor: None for sensor in self.sensors} for side in self.sides}
             self.reference_sensor = self.permutation_sensors["S"][self.reference_bearing]
             self.weldings_holder = np.array(
-                self.weldings + (self.shifts["S"][self.reference_sensor]) * np.ones(len(self.weldings))).astype(
+                self.weldings + (self.shifts["S"][self.reference_sensor]) * np.ones(
+                    len(self.weldings))).astype(
                 np.int32)
             self.shifted_weldings = {
                 side: {
@@ -221,9 +491,9 @@ class Octopus:
             self.anomaly_cluster = {
                 side: {
                     sensor: {
-                        "N_labels": None, "N_noise": None, "Anomalies": [], "Avg_Index": [], "std": [],
+                        "N_labels":    None, "N_noise": None, "Anomalies": [], "Avg_Index": [], "std": [],
                         "performance": [], "mask": {"echoes": None, "weldings": None},
-                        "DB_OBJECT": None, "Error_X": None,
+                        "DB_OBJECT":   None, "Error_X": None,
                         }
                     for sensor in self.sensors
                     } for side in self.sides
@@ -243,18 +513,18 @@ class Octopus:
             # print("Reading Acceleration Data from {}".format(self.accel_path))
             temp = pd.read_table(
                 str(self.accel_path),
-                header=None, sep="{}".format(separator_parser(self.dataset)),
-                engine='python',
-                skiprows=lambda x: skiprow_logic(x, self.start, self.stop))
+                header = None, sep = "{}".format(separator_parser(self.dataset)),
+                engine = 'python',
+                skiprows = lambda x: skiprow_logic(x, self.start, self.stop))
             return (temp - temp.mean()).to_numpy()
 
         def preprocess_accelerations(self):
             # Acquire Acceleration from dataset
             accelerations = pd.read_table(
                 str(self.accel_path),
-                header=None, sep="{}".format(separator_parser(self.dataset)),
-                engine='python',
-                skiprows=lambda x: skiprow_logic(x, self.start, self.stop))
+                header = None, sep = "{}".format(separator_parser(self.dataset)),
+                engine = 'python',
+                skiprows = lambda x: skiprow_logic(x, self.start, self.stop))
             # Zero-mean acceleration
             accelerations = (accelerations - accelerations.mean()).to_numpy()
             # Define Acceleration Data Structure via lists
@@ -321,9 +591,9 @@ class Octopus:
             # print("Reading Speed Data from {}".format(self.vel_path))
             return pd.read_table(
                 str(self.vel_path),
-                header=None, sep=separator_parser(self.dataset),
-                engine='python',
-                skiprows=lambda x: skiprow_logic(x, self.start, self.stop)).to_numpy()
+                header = None, sep = separator_parser(self.dataset),
+                engine = 'python',
+                skiprows = lambda x: skiprow_logic(x, self.start, self.stop)).to_numpy()
 
         def get_avg_previous_pos(self):
             """
@@ -336,9 +606,9 @@ class Octopus:
                 mean_speed = float(
                     pd.read_table(
                         str(self.vel_path),
-                        header=None,
-                        engine='python',
-                        skiprows=lambda x: skiprow_logic(x, 0, self.start)).mean()
+                        header = None,
+                        engine = 'python',
+                        skiprows = lambda x: skiprow_logic(x, 0, self.start)).mean()
                     )
                 ret_value = self.pos_zero + mean_speed * self.start / param.SAMPLING_FREQUENCY
             return ret_value
@@ -383,7 +653,7 @@ class Octopus:
             return {"N": north, "IN": i_north, "S": south, "IS": i_south}
 
         # WAVELET MODULES
-        def get_wsd(self, side="S", sensor=0):
+        def get_wsd(self, side = "S", sensor = 0):
             """
             Perform Wavelet Spectrum Density for a given column in a north_south decomposition of accelerations
             and then weights it with the defintion seen in Molodova et al. 2013.
@@ -395,22 +665,22 @@ class Octopus:
             print("[{}] # ".format(time.ctime()) + "Starting WSD generation module.")
             # Wavelet Coefficients Calculation
 
-            signal = np.nan_to_num(self.accel[side][sensor], nan=0)
+            signal = np.nan_to_num(self.accel[side][sensor], nan = 0)
             wavelet_coefficients, _ = pywt.cwt(
                 np.nan_to_num(signal),
                 param.SCALES,
                 param.WAVELET,
-                sampling_period=1 / param.SAMPLING_FREQUENCY)
+                sampling_period = 1 / param.SAMPLING_FREQUENCY)
 
             weights = np.array(param.SCALES).reshape((len(param.SCALES), 1))
             WSD = np.sum(
                 param.SCALE_JUMP * np.abs(wavelet_coefficients) ** 2 / (param.SAMPLING_FREQUENCY * weights),
-                axis=0
+                axis = 0
                 )
             self.wsd[side][sensor] = pd.Series(WSD).fillna(0)
             print("[{}] # ".format(time.ctime()) + "WSD generation module completed")
 
-        def get_anomalies(self, side="S", sensor=0, threshold=param.Z_SCORE_THRESHOLD, in_place=True):
+        def get_anomalies(self, side = "S", sensor = 0, threshold = param.Z_SCORE_THRESHOLD, in_place = True):
             """
             Perform Simple Anomaly detection with adaptive thresholding technique developed in November 2020.
             METHODS:
@@ -423,9 +693,9 @@ class Octopus:
             :return: if not in place anomalous_index and acceptance_band
             """
             # Performs partial spectrum analysis
-            self.get_wsd(side=side, sensor=sensor)
+            self.get_wsd(side = side, sensor = sensor)
             print("[{}] # ".format(time.ctime()) + "POI Discovery module started.")
-            self.get_z_score(side=side, sensor=sensor, threshold=threshold, in_place=True)
+            self.get_z_score(side = side, sensor = sensor, threshold = threshold, in_place = True)
             # Anomalous points are indexed with the condition of threshold on acceptance_band.
             acceptance_band = float(threshold * self.scores[side][sensor].std()) * np.ones_like(
                 self.scores[side][sensor])
@@ -441,7 +711,7 @@ class Octopus:
             else:
                 return anomalous_index
 
-        def get_z_score(self, side="S", sensor: int = 0, threshold=param.Z_SCORE_THRESHOLD, in_place=True):
+        def get_z_score(self, side = "S", sensor: int = 0, threshold = param.Z_SCORE_THRESHOLD, in_place = True):
             """
             As alternative to Bollinger Band on SAWP score, try to use z-score here.
             :param in_place: if in_place -> modifies object
@@ -451,13 +721,13 @@ class Octopus:
             :return: z_score
             """
             print("[{}] # ".format(time.ctime()) + "Z-score generation module started.")
-            mean = self.wsd[side][sensor].fillna(value=0).rolling(param.WINDOW,
-                                                                  win_type=param.WINDOW_TYPE).mean().fillna(value=0)
-            sigma = threshold * self.wsd[side][sensor].fillna(value=1).rolling(param.WINDOW,
-                                                                               win_type=param.WINDOW_TYPE).std().fillna(
-                value=1)
-            z_score = ((self.wsd[side][sensor].fillna(value=0) - mean) / sigma).replace([np.inf, -np.inf],
-                                                                                        np.nan).fillna(value=0)
+            mean = self.wsd[side][sensor].fillna(value = 0).rolling(param.WINDOW,
+                                                                    win_type = param.WINDOW_TYPE).mean().fillna(
+                value = 0)
+            sigma = threshold * self.wsd[side][sensor].fillna(value = 1).rolling(
+                param.WINDOW, win_type = param.WINDOW_TYPE).std().fillna(value = 1)
+            z_score = ((self.wsd[side][sensor].fillna(value = 0) - mean) / sigma).replace(
+                [np.inf, -np.inf], np.nan).fillna(value = 0)
             print("[{}] # ".format(time.ctime()) + "Z-score generation module completed.")
             if in_place:
                 self.scores[side][sensor] = z_score
@@ -470,9 +740,9 @@ class Octopus:
             :return: Nothing
             TODO REFACTOR AFTER DICT REFACTORING
             """
-            fig = make_subplots(rows=8, cols=1,
-                                shared_xaxes=True,
-                                vertical_spacing=0
+            fig = make_subplots(rows = 8, cols = 1,
+                                shared_xaxes = True,
+                                vertical_spacing = 0
                                 )
             for index_side, side in enumerate(self.sides):
                 for index_sensor, sensor in enumerate(self.bearings_labels[side]):
@@ -481,31 +751,31 @@ class Octopus:
                     # Complete Shifted Signal
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.positions["S"][0],
-                            y=self.accel[side][index_sensor],
-                            mode='lines',
-                            name='Signal_{}{}'.format(side, sensor),
-                            line=dict(color='blue', width=1),
+                            x = self.positions["S"][0],
+                            y = self.accel[side][index_sensor],
+                            mode = 'lines',
+                            name = 'Signal_{}{}'.format(side, sensor),
+                            line = dict(color = 'blue', width = 1),
                             ),
-                        row=index_sensor + 1 + 4 * index_side, col=1,
+                        row = index_sensor + 1 + 4 * index_side, col = 1,
                         )
                     # Shifted Weldings
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.positions["S"][0][self.shifted_weldings[side][index_sensor]],
-                            y=self.accel[side][index_sensor][self.shifted_weldings[side][index_sensor]],
-                            mode='markers',
-                            name='North Signal {}'.format(sensor),
-                            line=dict(color='black', width=20),
+                            x = self.positions["S"][0][self.shifted_weldings[side][index_sensor]],
+                            y = self.accel[side][index_sensor][self.shifted_weldings[side][index_sensor]],
+                            mode = 'markers',
+                            name = 'North Signal {}'.format(sensor),
+                            line = dict(color = 'black', width = 20),
                             ),
-                        row=index_sensor + 1 + 4 * index_side, col=1,
+                        row = index_sensor + 1 + 4 * index_side, col = 1,
                         )
             fig.update_layout(
-                height=1024,
-                width=2048,
-                title_text="Vibration Collection: T:{} D:{} S:{} C:{} UUID:{}".format(
+                height = 1024,
+                width = 2048,
+                title_text = "Vibration Collection: T:{} D:{} S:{} C:{} UUID:{}".format(
                     self.train, self.direction, self.avg_speed, self.component, self.uuid
-                    ), showlegend=False)
+                    ), showlegend = False)
 
             fig.write_image("images/Vibration_T_{}_D_{}_S_{}_C_{}_U{}.png".format(
                 self.train, self.direction, self.avg_speed, self.component, self.uuid
@@ -514,9 +784,9 @@ class Octopus:
 
         def plot_scores(self):
 
-            fig = make_subplots(rows=4, cols=4,
-                                shared_xaxes=True,
-                                vertical_spacing=0
+            fig = make_subplots(rows = 4, cols = 4,
+                                shared_xaxes = True,
+                                vertical_spacing = 0
                                 )
             for index_side, side in enumerate(self.sides):
                 for index_sensor, sensor in enumerate(self.bearings_labels[side]):
@@ -525,35 +795,35 @@ class Octopus:
                     # Complete Shifted Signal
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.position,
-                            y=self.accel[side][index_sensor],
-                            mode='lines',
-                            name='Signal_{}{}'.format(side, sensor),
-                            line=dict(color='blue', width=1),
+                            x = self.position,
+                            y = self.accel[side][index_sensor],
+                            mode = 'lines',
+                            name = 'Signal_{}{}'.format(side, sensor),
+                            line = dict(color = 'blue', width = 1),
                             ),
-                        row=index_sensor + 1, col=2 * index_side + 1,
+                        row = index_sensor + 1, col = 2 * index_side + 1,
                         )
                     # Shifted Weldings
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.position[self.shifted_weldings[side][index_sensor]],
-                            y=self.accel[side][index_sensor][self.shifted_weldings[side][index_sensor]],
-                            mode='markers',
-                            name='North Signal {}'.format(sensor),
-                            line=dict(color='black', width=20),
+                            x = self.position[self.shifted_weldings[side][index_sensor]],
+                            y = self.accel[side][index_sensor][self.shifted_weldings[side][index_sensor]],
+                            mode = 'markers',
+                            name = 'North Signal {}'.format(sensor),
+                            line = dict(color = 'black', width = 20),
                             ),
-                        row=index_sensor + 1, col=2 * index_side + 1,
+                        row = index_sensor + 1, col = 2 * index_side + 1,
                         )
                     # Anomalous Signals
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.position[self.anomalies[side][index_sensor]],
-                            y=self.accel[side][index_sensor][self.anomalies[side][index_sensor]],
-                            mode='markers',
-                            name='North Signal {}'.format(sensor),
-                            line=dict(color='red', width=2),
+                            x = self.position[self.anomalies[side][index_sensor]],
+                            y = self.accel[side][index_sensor][self.anomalies[side][index_sensor]],
+                            mode = 'markers',
+                            name = 'North Signal {}'.format(sensor),
+                            line = dict(color = 'red', width = 2),
                             ),
-                        row=index_sensor + 1, col=2 * index_side + 1,
+                        row = index_sensor + 1, col = 2 * index_side + 1,
                         )
 
                     # Even Part
@@ -561,43 +831,43 @@ class Octopus:
                     # Scores
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.position,
-                            y=self.scores[side][index_sensor],
-                            mode='lines',
-                            name='Scores_{}{}'.format(side, sensor),
-                            line=dict(color='blue', width=1),
+                            x = self.position,
+                            y = self.scores[side][index_sensor],
+                            mode = 'lines',
+                            name = 'Scores_{}{}'.format(side, sensor),
+                            line = dict(color = 'blue', width = 1),
                             ),
-                        row=index_sensor + 1, col=2 * index_side + 2,
+                        row = index_sensor + 1, col = 2 * index_side + 2,
                         )
                     # Shifted Weldings
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.position[self.shifted_weldings[side][index_sensor]],
-                            y=self.scores[side][index_sensor][self.shifted_weldings[side][index_sensor]],
-                            mode='markers',
-                            name='North Signal {}'.format(sensor),
-                            line=dict(color='black', width=20),
+                            x = self.position[self.shifted_weldings[side][index_sensor]],
+                            y = self.scores[side][index_sensor][self.shifted_weldings[side][index_sensor]],
+                            mode = 'markers',
+                            name = 'North Signal {}'.format(sensor),
+                            line = dict(color = 'black', width = 20),
                             ),
-                        row=index_sensor + 1, col=2 * index_side + 2,
+                        row = index_sensor + 1, col = 2 * index_side + 2,
                         )
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.position,
-                            y=self.thresholds[side][index_sensor],
-                            mode='lines',
-                            name='North Signal {}'.format(sensor),
-                            line=dict(color='red', width=1),
+                            x = self.position,
+                            y = self.thresholds[side][index_sensor],
+                            mode = 'lines',
+                            name = 'North Signal {}'.format(sensor),
+                            line = dict(color = 'red', width = 1),
                             ),
-                        row=index_sensor + 1, col=2 * index_side + 2,
+                        row = index_sensor + 1, col = 2 * index_side + 2,
                         )
 
             fig.update_layout(
-                height=1024 * 2,
-                width=2048 * 2,
-                title_text="Scores for : T:{} D:{} S:{} C:{} UUID:{}".format(
+                height = 1024 * 2,
+                width = 2048 * 2,
+                title_text = "Scores for : T:{} D:{} S:{} C:{} UUID:{}".format(
                     self.train, self.direction, self.avg_speed, self.component, self.uuid
-                    ), showlegend=False)
-            fig.update_xaxes(range=[0, 300])
+                    ), showlegend = False)
+            fig.update_xaxes(range = [0, 300])
             fig.write_image("images/Scores_T_{}_D_{}_S_{}_C_{}_U{}.png".format(
                 self.train, self.direction, self.avg_speed, self.component, self.uuid
                 ))
@@ -606,9 +876,9 @@ class Octopus:
         # ML Methods
         # noinspection PyTypeChecker
         def get_anomaly_clusters(self,
-                                 eps=param.CLUSTERING_EPS,
-                                 min_samples=param.CLUSTERING_MS,
-                                 metric=param.CLUSTERING_METRICS
+                                 eps = param.CLUSTERING_EPS,
+                                 min_samples = param.CLUSTERING_MS,
+                                 metric = param.CLUSTERING_METRICS
                                  ):
             """
             Uses DBSCAN to cluster point in the anomaly dataset and stores them in an ad-hoc dictionary
@@ -624,9 +894,9 @@ class Octopus:
                     print("[{}] # ".format(time.ctime()) + "DBSCAN -> {}{} sensor".format(side, sensor))
                     # Performs DBSCAN
                     local_db = DBSCAN(
-                        eps=eps,
-                        min_samples=min_samples,
-                        metric=metric
+                        eps = eps,
+                        min_samples = min_samples,
+                        metric = metric
                         ).fit(
                         np.array(
                             self.anomalies[side][sensor]).reshape(-1, 1)
@@ -647,14 +917,14 @@ class Octopus:
                         self.anomaly_cluster[side][sensor]["Anomalies"].append(
                             self.anomalies[side][sensor][
                                 np.where(local_db.labels_ == cluster)
-                            ]
+                                ]
                             )
                         # Cluster centroids
                         self.anomaly_cluster[side][sensor]["Avg_Index"].append(
                             int(
                                 np.array(
                                     self.anomaly_cluster[side][sensor]["Anomalies"][cluster],
-                                    dtype=np.int32
+                                    dtype = np.int32
                                     ).mean()
                                 )
                             )
@@ -663,14 +933,14 @@ class Octopus:
                             int(
                                 np.array(
                                     self.anomaly_cluster[side][sensor]["Anomalies"][cluster],
-                                    dtype=np.int32
+                                    dtype = np.int32
                                     ).std()
                                 )
                             )
 
             print("[{}] # ".format(time.ctime()) + "DBSCAN clustering Completed.")
 
-        def evaluate_prediction(self, mode="Global", error_length=3):
+        def evaluate_prediction(self, mode = "Global", error_length = 3):
             # OPTION ONE TODO use predict method for each of the dbscan predictor objects
             # OPTION TWO (actual) use a custom metric based on distance from weldings
             # WARNING: ASSUMING SHIFTING IS COMPLETED
@@ -684,8 +954,8 @@ class Octopus:
                     x = np.array(self.shifted_weldings[side][sensor]).reshape((N_weldings, 1))
                     y = np.array(self.anomaly_cluster[side][sensor]["Avg_Index"])
                     distance_matrix = np.abs(x - y)
-                    pred_distance = list(np.min(distance_matrix, axis=1))
-                    mask_pred_weld = list(np.argmin(distance_matrix, axis=1).astype(np.int32))
+                    pred_distance = list(np.min(distance_matrix, axis = 1))
+                    mask_pred_weld = list(np.argmin(distance_matrix, axis = 1).astype(np.int32))
                     pred_sigma = self.anomaly_cluster[side][sensor]["std"]
                     zip_pred = zip(pred_distance, pred_sigma)
                     # TODO less hard-thresholding function
@@ -702,8 +972,8 @@ class Octopus:
                     # Rail Weldings calculation:
                     echo_x = np.array(self.weldings_echoes[side][sensor]).reshape((N_weldings, 1))
                     echo_matrix = np.abs(echo_x - y)
-                    echo_distance = list(np.min(echo_matrix, axis=1))
-                    mask_echo_weld = list(np.argmin(echo_matrix, axis=1).astype(np.int32))
+                    echo_distance = list(np.min(echo_matrix, axis = 1))
+                    mask_echo_weld = list(np.argmin(echo_matrix, axis = 1).astype(np.int32))
                     echo_sigma = self.anomaly_cluster[side][sensor]["std"]
                     echo_pred = zip(echo_distance, echo_sigma)
                     # TODO less hard-thresholding function
@@ -716,12 +986,13 @@ class Octopus:
                         ).astype(np.int32)
 
                     echo_detection = np.sum(echo_array) / N_echoes
-                    prob_false_alarm = (
-                                               N_prediction - N_weldings * prob_detection - N_echoes * echo_detection) / N_prediction
+                    prob_false_alarm = (N_prediction - N_weldings * prob_detection - N_echoes * echo_detection
+                                        ) / N_prediction
                     self.anomaly_cluster[side][sensor]["performance"] = [prob_detection, echo_detection,
                                                                          prob_false_alarm]
-                    print("[{}] # ".format(time.ctime()) + "Performance. PD: {:.2%}; ED: {:.2%}; PFA: {:.2%}".format(
-                        prob_detection, echo_detection, prob_false_alarm))
+                    print(
+                        "[{}] # ".format(time.ctime()) + "Performance. PD: {:.2%}; ED: {:.2%}; PFA: {:.2%}".format(
+                            prob_detection, echo_detection, prob_false_alarm))
                     self.anomaly_cluster[side][sensor]["mask"]["echoes"] = mask_echo_weld
                     self.anomaly_cluster[side][sensor]["mask"]["weldings"] = mask_pred_weld
 
@@ -731,31 +1002,32 @@ class Octopus:
             :return: Nothing
             TODO REFACTOR AFTER DICT REFACTORING
             """
-            fig = make_subplots(rows=8, cols=1,
-                                shared_xaxes=True,
-                                vertical_spacing=0
+            fig = make_subplots(rows = 8, cols = 1,
+                                shared_xaxes = True,
+                                vertical_spacing = 0
                                 )
             # Plot Signals
             for index_side, side in enumerate(self.sides):
                 for index_sensor, sensor in enumerate(self.bearings_labels[side]):
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.positions["S"][0],
-                            y=self.accel[side][index_sensor],
-                            mode='lines',
-                            line=dict(color='black', width=1),
-                            opacity=0.2
+                            x = self.positions["S"][0],
+                            y = self.accel[side][index_sensor],
+                            mode = 'lines',
+                            line = dict(color = 'black', width = 1),
+                            opacity = 0.2
                             ),
-                        row=index_sensor + 4 * index_side + 1, col=1,
+                        row = index_sensor + 4 * index_side + 1, col = 1,
                         )
-                    fig.update_yaxes(title_text="Bearing {}{}".format(side, sensor),
-                                     row=index_sensor + 4 * index_side + 1, col=1,
-                                     showgrid=False, showticklabels=True)
+                    fig.update_yaxes(title_text = "Bearing {}{}".format(side, sensor),
+                                     row = index_sensor + 4 * index_side + 1, col = 1,
+                                     showgrid = False, showticklabels = True)
 
             # Plot Clusters
             for index_side, side in enumerate(self.sides):
                 for index_sensor, sensor in enumerate(self.bearings_labels[side]):
-                    for index_cluster, cluster in enumerate(self.anomaly_cluster[side][index_sensor]["Anomalies"]):
+                    for index_cluster, cluster in enumerate(
+                            self.anomaly_cluster[side][index_sensor]["Anomalies"]):
                         # COLOR METHOD
                         if index_cluster in self.anomaly_cluster[side][index_sensor]["mask"]["weldings"]:
                             color = "blue"
@@ -768,58 +1040,58 @@ class Octopus:
                             opacity = 0.5
                         fig.add_trace(
                             go.Scattergl(
-                                x=self.positions["S"][0][cluster],
-                                y=self.accel[side][index_sensor][cluster],
-                                mode='lines',
-                                opacity=opacity,
-                                line=dict(width=3, color=color),
+                                x = self.positions["S"][0][cluster],
+                                y = self.accel[side][index_sensor][cluster],
+                                mode = 'lines',
+                                opacity = opacity,
+                                line = dict(width = 3, color = color),
                                 ),
-                            row=index_sensor + 4 * index_side + 1, col=1,
+                            row = index_sensor + 4 * index_side + 1, col = 1,
                             )
-                        fig.update_yaxes(title_text="{}{}".format(side, sensor),
-                                         row=index_sensor + 4 * index_side + 1, col=1,
-                                         showgrid=False, showticklabels=True)
+                        fig.update_yaxes(title_text = "{}{}".format(side, sensor),
+                                         row = index_sensor + 4 * index_side + 1, col = 1,
+                                         showgrid = False, showticklabels = True)
 
             for index_side, side in enumerate(self.sides):
                 for index_sensor, sensor in enumerate(self.bearings_labels[side]):
                     # Shifted Weldings
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.positions["S"][0][self.shifted_weldings[side][index_sensor]],
-                            y=self.accel[side][index_sensor][self.shifted_weldings[side][index_sensor]],
-                            mode='markers',
-                            marker=dict(color='yellow', size=2),
-                            error_x=dict(
-                                type='data',  # value of error bar given in data coordinates
-                                array=self.anomaly_cluster[side][index_sensor]["Error_X"] * np.ones_like(
+                            x = self.positions["S"][0][self.shifted_weldings[side][index_sensor]],
+                            y = self.accel[side][index_sensor][self.shifted_weldings[side][index_sensor]],
+                            mode = 'markers',
+                            marker = dict(color = 'yellow', size = 2),
+                            error_x = dict(
+                                type = 'data',  # value of error bar given in data coordinates
+                                array = self.anomaly_cluster[side][index_sensor]["Error_X"] * np.ones_like(
                                     self.shifted_weldings[side][index_sensor]),
-                                visible=True),
+                                visible = True),
                             ),
-                        row=index_sensor + 4 * index_side + 1, col=1,
+                        row = index_sensor + 4 * index_side + 1, col = 1,
                         )
 
                     # Shifted Echo Weldings
                     fig.add_trace(
                         go.Scattergl(
-                            x=self.positions["S"][0][self.weldings_echoes[side][index_sensor]],
-                            y=self.accel[side][index_sensor][self.weldings_echoes[side][index_sensor]],
-                            mode='markers',
-                            marker=dict(color='orange', size=2),
-                            error_x=dict(
-                                type='data',  # value of error bar given in data coordinates
-                                array=self.anomaly_cluster[side][index_sensor]["Error_X"] * np.ones_like(
+                            x = self.positions["S"][0][self.weldings_echoes[side][index_sensor]],
+                            y = self.accel[side][index_sensor][self.weldings_echoes[side][index_sensor]],
+                            mode = 'markers',
+                            marker = dict(color = 'orange', size = 2),
+                            error_x = dict(
+                                type = 'data',  # value of error bar given in data coordinates
+                                array = self.anomaly_cluster[side][index_sensor]["Error_X"] * np.ones_like(
                                     self.shifted_weldings[side][index_sensor]),
-                                visible=True),
+                                visible = True),
                             ),
-                        row=index_sensor + 4 * index_side + 1, col=1,
+                        row = index_sensor + 4 * index_side + 1, col = 1,
                         )
 
             fig.update_layout(
-                height=1024,
-                width=2048,
-                title_text="Vibration Collection: T:{} D:{} S:{} C:{} UUID:{}".format(
+                height = 1024,
+                width = 2048,
+                title_text = "Vibration Collection: T:{} D:{} S:{} C:{} UUID:{}".format(
                     self.train, self.direction, self.avg_speed, self.component, self.uuid
-                    ), showlegend=False)
+                    ), showlegend = False)
 
             fig.write_image("images/CVIB_T_{}_D_{}_S_{}_C_{}_U{}.png".format(
                 self.train, self.direction, self.avg_speed, self.component, self.uuid

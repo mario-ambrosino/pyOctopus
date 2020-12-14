@@ -1,12 +1,12 @@
 import os
 
 # Versioning
-module_version = "0.3"
-module_last_modified_data = "2020/11/27"
+module_version = "0.5"
+module_last_modified_data = "2020/12/14"
 verbose_mode = True
 
 # Path
-ROOT_PATH = "/home/mario/WS/OCTOPUS/PyOctopus"
+ROOT_PATH = "."
 DATASET_PATH = os.path.join(ROOT_PATH, "datasets")
 META_PATH = os.path.join(ROOT_PATH, "export/meta.csv")
 
