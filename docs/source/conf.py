@@ -55,6 +55,7 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-
 # Mock modules
 autodoc_mock_imports = ["pywt"]
+
+
