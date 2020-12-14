@@ -22,10 +22,7 @@ warnings.filterwarnings('ignore')
 from . import shared_parameters as param
 from sklearn.cluster import DBSCAN
 
-
-# TODO: Warning, Log and Error handling classes
-
-# Credits and version print
+meta_frame = None
 
 
 def init():
@@ -52,10 +49,6 @@ def init():
         meta_df = pd.read_csv(str(param.META_PATH))
     print("[{}] # ".format(time.ctime()) + "Init Completed.")
     return meta_df
-
-
-# Loads the meta_frame prior to everything
-meta_frame = init()
 
 
 def sigmoid(x):
@@ -87,7 +80,7 @@ def naive_integration(data):
     return pd.DataFrame(np.cumsum(data)).to_numpy()
 
 
-def uuid_to_value(uid=None, value=None, meta=meta_frame):
+def uuid_to_value(uid=None, value=None, meta=None):
     """ Given UUID, gives the relative accel_path """
     return meta[meta["ID"] == uid][value].values[0]
 
@@ -724,7 +717,7 @@ class Octopus:
 
                     echo_detection = np.sum(echo_array) / N_echoes
                     prob_false_alarm = (
-                                                   N_prediction - N_weldings * prob_detection - N_echoes * echo_detection) / N_prediction
+                                               N_prediction - N_weldings * prob_detection - N_echoes * echo_detection) / N_prediction
                     self.anomaly_cluster[side][sensor]["performance"] = [prob_detection, echo_detection,
                                                                          prob_false_alarm]
                     print("[{}] # ".format(time.ctime()) + "Performance. PD: {:.2%}; ED: {:.2%}; PFA: {:.2%}".format(
@@ -732,7 +725,7 @@ class Octopus:
                     self.anomaly_cluster[side][sensor]["mask"]["echoes"] = mask_echo_weld
                     self.anomaly_cluster[side][sensor]["mask"]["weldings"] = mask_pred_weld
 
-        def plot_clusters(self,):
+        def plot_clusters(self, ):
             """
             Plots the cluster obtained
             :return: Nothing
@@ -766,10 +759,10 @@ class Octopus:
                         # COLOR METHOD
                         if index_cluster in self.anomaly_cluster[side][index_sensor]["mask"]["weldings"]:
                             color = "blue"
-                            opacity=0.8
+                            opacity = 0.8
                         elif index_cluster in self.anomaly_cluster[side][index_sensor]["mask"]["echoes"]:
                             color = "green"
-                            opacity=0.6
+                            opacity = 0.6
                         else:
                             color = "red"
                             opacity = 0.5
@@ -797,8 +790,9 @@ class Octopus:
                             mode='markers',
                             marker=dict(color='yellow', size=2),
                             error_x=dict(
-                                type='data', # value of error bar given in data coordinates
-                                array=self.anomaly_cluster[side][index_sensor]["Error_X"]*np.ones_like(self.shifted_weldings[side][index_sensor]),
+                                type='data',  # value of error bar given in data coordinates
+                                array=self.anomaly_cluster[side][index_sensor]["Error_X"] * np.ones_like(
+                                    self.shifted_weldings[side][index_sensor]),
                                 visible=True),
                             ),
                         row=index_sensor + 4 * index_side + 1, col=1,
