@@ -319,7 +319,7 @@ class MetaFrame:
             print("[{}] # ".format(time.ctime()) + "Warning - Meta-frame not found.")
             print("[{}] # ".format(time.ctime()) +
                   "Alternative Route -> Generate Meta-frame from {} folder".format(param.DATASET_PATH))
-            self.export_metaframe()
+            self.export_metaframe(name = "meta")
             self.frame = pd.read_csv(str(self.path))
         print("[{}] # ".format(time.ctime()) + "Init Completed.")
 
@@ -397,7 +397,7 @@ class Octopus:
             """
             # unique universal identifier for the given dataset
             self.uuid = str(uid)
-            self.meta = MetaFrame()
+            self.meta = MetaFrame(path_meta = param.META_PATH, path_data = param.DATASET_PATH)
             # Trip metadata
             self.dataset = self.extract_item("Dataset")
             self.train = self.extract_item("Train")
