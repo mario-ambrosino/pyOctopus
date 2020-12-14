@@ -6,7 +6,6 @@ module_last_modified_data = "2020/12/14"
 verbose_mode = True
 
 # Path
-
 DATASET_PATH = "datasets"
 META_PATH = "export/meta.csv"
 
