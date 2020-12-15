@@ -9,7 +9,7 @@ from sklearn.cluster import DBSCAN
 
 import octolib.shared as shared
 from octolib.trip import Trip
-from utils import naive_integration, separator_parser, skiprow_logic
+from octolib.utils import naive_integration, separator_parser, skiprow_logic
 
 
 class Track(Trip):
