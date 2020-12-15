@@ -12,7 +12,7 @@ python3 automated_score_generator.py --THR "0.1; 0.5" --DER "0.1; 0.4" --EPS "15
 
 import time
 import argparse
-import octolib.helper as hp
+import lib.helper as hp
 
 if __name__ == '__main__':
     try:

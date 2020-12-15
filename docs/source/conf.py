@@ -14,7 +14,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath('../..'))
-#sys.path.insert(0, os.path.abspath('../octolib/'))
+sys.path.insert(0, os.path.abspath('../../lib/'))
 
 
 # -- Project information -----------------------------------------------------
@@ -57,5 +57,4 @@ html_static_path = ['_static']
 
 # Mock modules
 autodoc_mock_imports = ["pywt"]
-
 
