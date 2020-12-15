@@ -1,3 +1,5 @@
+#TODO GitSecret Task
+
 # Versioning
 module_version = "0.5"
 module_last_modified_data = "2020/12/15"
@@ -28,9 +30,13 @@ MANUAL_SHIFTS = True
 SHIFTED_ACCEL = True
 
 # CLUSTERING
-CLUSTERING_EPS = 10
-CLUSTERING_MS = 10
+CLUSTERING_EPS = 15
+CLUSTERING_MS = 15
 CLUSTERING_METRICS = "cityblock"
+CLUSTER_RADIUS = 256
+
+# GROUND WINDOW
+GROUND_WINDOW_DER = 0.5
 
 relative_ns_shift = {
     "N": {
