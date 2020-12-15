@@ -1,7 +1,7 @@
-lib
-===
+octolib
+=======
 
 .. toctree::
    :maxdepth: 4
 
-   lib
+   octolib
