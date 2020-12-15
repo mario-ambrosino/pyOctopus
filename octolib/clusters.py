@@ -8,10 +8,13 @@ Date: 15/12/2020
 # Sys
 import time
 
+import numpy as np
+
 # Project Libraries
 import octolib.shared as shared
 import octolib.track as track
-
+from fastdtw import fastdtw
+from scipy.spatial.distance import euclidean
 
 class Cluster(track.Track):
 
@@ -77,7 +80,8 @@ class Cluster(track.Track):
                     side, sensor, cluster)
                       )
 
-    def get_all_anomalies(self, threshold: float = shared.SIGMA_TH,
+    def get_all_anomalies(self,
+                          threshold: float = shared.SIGMA_TH,
                           detection_range: float = shared.GROUND_WINDOW_DER,
                           epsilon: float = shared.CLUSTERING_EPS,
                           min_samples_cluster: int = shared.CLUSTERING_MS,
@@ -119,3 +123,42 @@ class Cluster(track.Track):
                                   min_samples = min_samples_cluster,
                                   metric = cluster_metrics)
         self.evaluate_prediction(error_length = detection_range)
+
+    def dtw_dist(self, side, sensor, x_index,y_index):
+        dtw_distance, _ = fastdtw(
+            x = self(side = side, sensor = sensor, cluster = x_index),
+            y = self(side = side, sensor = sensor, cluster = y_index),
+            )
+        return dtw_distance
+
+    def dtw_dist_matrix(self, side, sensor):
+        """
+        Dynamic Time Warp Distance Matrix between elements of a clustering class.
+
+        STATUS:
+        -------
+        Failure: the fastdtw routine is slow and leads to results which aren't useful at the moment. To be further
+        investigated.
+
+        TODO: talk to Norman
+
+        Parameters
+        ----------
+        side: str
+            train side
+        sensor: int
+            sensor id
+
+        Returns
+        -------
+        dtw_dist_matric: np.array(shape(n_signals,n_signals))
+            a matrix with the distances betwee
+
+        """
+        n_signals = len(self.clusters[side][sensor].keys())
+        print(n_signals)
+        dtw_dist_matrix = np.empty((n_signals, n_signals))
+        for x_index in range(1, n_signals):
+            for y_index in range(1, n_signals):
+                dtw_dist_matrix[x_index, y_index] = self.dtw_dist(side,sensor,x_index,y_index)
+        return dtw_dist_matrix
