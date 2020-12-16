@@ -1,4 +1,4 @@
-#TODO GitSecret Task
+# TODO GitSecret Task
 
 # Versioning
 module_version = "0.5"

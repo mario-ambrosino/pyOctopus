@@ -4,3 +4,5 @@ plotly
 scipy
 scikit-learn
 setuptools
+
+fastdtw

@@ -8,9 +8,14 @@ Date: 15/12/2020
 # Sys
 import time
 
+import numpy as np
+
 # Project Libraries
 import octolib.shared as shared
 import octolib.track as track
+from fastdtw import fastdtw
+import pywt
+from plotly.express import imshow
 
 
 class Cluster(track.Track):
@@ -20,6 +25,7 @@ class Cluster(track.Track):
         Anomaly Cluster Init module. It loads all the anomalies for each side and sensor on super attributes,
         then locally generates a dictionary for slices of index centered in anomaly detected by the algorithm.
         TODO: include
+
         Parameters
         ----------
         uid: the unique identifier to select a specific dataset;
@@ -46,6 +52,7 @@ class Cluster(track.Track):
                             } for sensor in self.sensors
                     } for side in self.sides
             }
+        self.clean_clusters()
 
     def __call__(self, side: str, sensor: int, cluster):
         """
@@ -77,7 +84,21 @@ class Cluster(track.Track):
                     side, sensor, cluster)
                       )
 
-    def get_all_anomalies(self, threshold: float = shared.SIGMA_TH,
+    def clean_clusters(self):
+        """
+        Clean the cluster from null slices.
+        Returns
+        -------
+
+        """
+        for side in self.sides:
+            for sensor in self.sensors:
+                for (index, _) in enumerate(self.anomaly_cluster[side][sensor]["Avg_Index"]):
+                    if self.clusters[side][sensor][index]["Slice"] is None:
+                        self.clusters[side][sensor].pop(index)
+
+    def get_all_anomalies(self,
+                          threshold: float = shared.SIGMA_TH,
                           detection_range: float = shared.GROUND_WINDOW_DER,
                           epsilon: float = shared.CLUSTERING_EPS,
                           min_samples_cluster: int = shared.CLUSTERING_MS,
@@ -88,19 +109,19 @@ class Cluster(track.Track):
 
         Parameters
         ----------
-    threshold : float
-        multiplication factor for the decision boundary for anomaly score
-    detection_range : float
-        range (in meters) to assess whether a cluster correctly verifies the hypothesis to be a welding.
-    epsilon : float
-        The maximum distance between two samples for one to be considered as in the neighborhood of the other.
-        This is not a maximum bound on the distances of points within a cluster.
-        This is the most important DBSCAN parameter to choose appropriately for your data set and distance function.
-    min_samples_cluster : int
-        The number of samples (or total weight) in a neighborhood for a point to be considered as a core point.
-        This includes the point itself.
-    cluster_metrics : str
-        The metric chosen for clustering in the set [‘cityblock’, ‘cosine’, ‘euclidean’, ‘l1’, ‘l2’, ‘manhattan’]
+        threshold : float
+            multiplication factor for the decision boundary for anomaly score
+        detection_range : float
+            range (in meters) to assess whether a cluster correctly verifies the hypothesis to be a welding.
+        epsilon : float
+            The maximum distance between two samples for one to be considered as in the neighborhood of the other.
+            This is not a maximum bound on the distances of points within a cluster.
+            This is the most important DBSCAN parameter to choose appropriately for your data set and distance function.
+        min_samples_cluster : int
+            The number of samples (or total weight) in a neighborhood for a point to be considered as a core point.
+            This includes the point itself.
+        cluster_metrics : str
+            The metric chosen for clustering in the set [‘cityblock’, ‘cosine’, ‘euclidean’, ‘l1’, ‘l2’, ‘manhattan’]
 
         Returns
         -------
@@ -119,3 +140,117 @@ class Cluster(track.Track):
                                   min_samples = min_samples_cluster,
                                   metric = cluster_metrics)
         self.evaluate_prediction(error_length = detection_range)
+
+    def get_cwt(self, side, sensor, index,
+                scales = shared.SCALES,
+                wavelet = shared.WAVELET,
+                samp_period = 1 / shared.SAMPLING_FREQUENCY, mode="coeff"):
+        """
+        Returns Continuous Wavelet Transform. Wrapper for pywt function
+        Parameters
+        ----------
+        side: str = {"N","S"}
+            Side of the train
+        sensor: int = {0,1,2,3}
+            Index for the sensor
+        index: int
+            Index for number of cluster
+        scales:
+            Number of scales for the pywt.cwt
+        wavelet:
+            Wavelet selected for the pywt.cwt
+        samp_period:
+            Sampling Period for the pywt.cwt
+        Returns
+        -------
+        wavelet_coeff: np.array
+            2-dim array containing the complex values of the wavelet function calculated for the signal.
+        wave_freq: np.array
+            1-dim array containing the frequency corresponding to scales.
+
+        """
+        wavelet_coeff, wave_freq = pywt.cwt(
+            data = np.nan_to_num(self(side = side, sensor = sensor, cluster = index)),
+            scales = scales,
+            wavelet = wavelet,
+            sampling_period = samp_period
+            )
+        if mode == "coeff":
+            return wavelet_coeff
+        if mode == "wsd":
+            return np.abs(wavelet_coeff**2)
+
+
+    def dtw_dist(self, side, sensor, x_index, y_index):
+        """
+        Calculate distance between two clusters x and y  using DTW
+
+        Parameters
+        ----------
+        side: str = {"N","S"}
+            Side of the train
+        sensor: int = {0,1,2,3}
+            Index for the sensor
+        x_index: int
+            Index for cluster x
+        y_index: int
+            Index for cluster y
+
+        Returns
+        -------
+        dtw_distance: float
+            the DTW distance.
+
+        """
+        dtw_distance, _ = fastdtw(
+            x = self(side = side, sensor = sensor, cluster = x_index),
+            y = self(side = side, sensor = sensor, cluster = y_index),
+            )
+        return dtw_distance
+
+    def plot_all_clusters(self):
+        for side in self.sides:
+            for sensor in self.sensors:
+                for index in range(len(self.clusters[side][sensor])):
+                    wave = self.get_cwt(side = side, sensor = sensor, index = index, mode = "wsd")
+                    fig = imshow(wave)
+                    fig.write_image("images/WSD_clusters/WSD_T{}_D{}_S{}_C{}_L{}_A{}_CLU{}.png".format(
+                        self.train, self.direction, self.avg_speed, self.component, side, sensor, index)
+                        )
+                    print("Written image in 'images/WSD_clusters/WSD_T{}_D{}_S{}_C{}_L{}_A{}_CLU{}.png'".format(
+                        self.train, self.direction, self.avg_speed, self.component, side, sensor, index)
+                        )
+
+
+    def dtw_dist_matrix(self, side, sensor):
+        """
+        Dynamic Time Warp Distance Matrix between elements of a clustering class.
+
+        STATUS:
+        -------
+        Failure: the fastdtw routine is slow and leads to results which aren't useful at the moment. To be further
+        investigated.
+
+        TODO: talk to Norman
+
+        Parameters
+        ----------
+        side: str
+            train side
+        sensor: int
+            sensor id
+
+        Returns
+        -------
+        dtw_dist_matric: np.array(shape(n_signals,n_signals))
+            a matrix with the distances betwee
+
+        """
+        n_signals = len(self.clusters[side][sensor].keys())
+        print(n_signals)
+        dtw_dist_matrix = np.empty((n_signals, n_signals))
+        for x_index in range(0, n_signals):
+            for y_index in range(0, x_index):
+                dtw_dist_matrix[x_index, y_index] = self.dtw_dist(side, sensor, x_index, y_index)
+                dtw_dist_matrix[y_index, x_index] = dtw_dist_matrix[x_index, y_index]
+        return dtw_dist_matrix
