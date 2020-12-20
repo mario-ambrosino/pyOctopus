@@ -9,16 +9,17 @@ verbose_mode = False
 DATASET_PATH = "datasets"
 META_PATH = "export/meta.csv"
 
-# Parameters
+# Sensor Parameters
 SAMPLING_FREQUENCY = 2000  # Hz
 
-# Wavelet Parameters
+# CWT  Parameters
 MIN_SCALE = 1  # Minimum Scale
 MAX_SCALE = 51  # Maximum Scale. WARNING! Choose it w.r.t. RAM footprint TODO method to choose MAX_SCALE properly
-WINDOW = 1500  # Rolling Window Width for pandas moving average methods
 SCALE_JUMP = 1  # Gap between scales
 SCALES = list(range(MIN_SCALE, MAX_SCALE, SCALE_JUMP))  # Scales List
 WAVELET = "cmor1-1"  # Complex Morlet with Central Frequency and Central Width equal to 1
+# Window parameters
+WINDOW = 500  # Rolling Window Width for pandas moving average methods
 WINDOW_TYPE = "hamming"  # Window-type for rolling and padding pandas algorithm.
 DISCRETE_WAVELET = "db4"
 SIGMA_DENOISING_FILTER = 0.2
@@ -26,6 +27,8 @@ FILTER_THRESHOLD = len(SCALES)  # actually uses full spectrum to ease calculatio
 SIGMA_TH = 2
 Z_SCORE_THRESHOLD = 2
 STARTING_POINT = 864  # [m] - Reference Position
+
+# Mode
 MANUAL_SHIFTS = True
 SHIFTED_ACCEL = True
 

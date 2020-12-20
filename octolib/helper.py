@@ -16,6 +16,7 @@ import pandas as pd
 import octolib.metaframe as metaframe
 import octolib.shared as shared
 import octolib.track as track
+import octolib.clusters as clu
 
 warnings.filterwarnings('ignore')
 
@@ -75,7 +76,7 @@ def automate_score_generation(
                         for cm in cm_set:
                             print("[{}] # ".format(time.ctime())
                                   + "Parameters:: M: {}.T: {}.D: {}.E: {}.C: {}.M: {}.".format(
-                                    mode, threshold, detection_range, e, ms, cm)
+                                mode, threshold, detection_range, e, ms, cm)
                                   )
                             test_alignment_score(
                                 threshold = threshold,
@@ -181,3 +182,46 @@ def test_alignment_score(threshold: float = 0.7,
                                                            cluster_metrics, )
             )
     print("[{}] # ".format(time.ctime()) + "Score Generator Helper completed.")
+
+
+def export_clusters():
+    meta = metaframe.MetaFrame(path_data = shared.DATASET_PATH, path_meta = shared.META_PATH)
+    for identifier, uid in enumerate(meta.UUID):
+        X = clu.Cluster(uid)
+        X.export_all_clusters()
+
+
+def export_labeled_clu():
+    meta = metaframe.MetaFrame(path_data = shared.DATASET_PATH, path_meta = shared.META_PATH)
+    for identifier, uid in enumerate(meta.UUID):
+        X = clu.Cluster(uid)
+        X.plot_labeled_clusters()
+
+
+def evaluate_clusters(start_from = 0):
+    """
+    Evaluates the DWT clusters and exports the image of the matrix obtained and the relative matrix in a csv file.
+
+    Returns
+    -------
+    None
+
+    """
+    import plotly.express as px
+    import numpy as np
+    meta = metaframe.MetaFrame(path_data = shared.DATASET_PATH, path_meta = shared.META_PATH)
+    for identifier, uid in enumerate(meta.UUID):
+        X = clu.Cluster(uid)
+        for side in X.sides:
+            for sensor in X.sensors:
+                print("[{}] # ".format(time.ctime()) + "Starting DTW Matrix Computation.")
+                dtw_matrix = X.dist_matrix(side = side, sensor = sensor, mode = "sawp")
+                fig = px.imshow(dtw_matrix)
+                image_path = f"images/DTW_matrices/DTW_{X.train}_{X.direction}_{X.avg_speed}" \
+                             f"_{X.component}_{X.num_trip}_{X.engine_conf}_{side}_{sensor}_{uid}.png"
+                fig.write_image(image_path)
+                print("[{}] # ".format(time.ctime()) + "Image Exported.")
+                matrix_path = f"export/DTW_matrices/DTW_{X.train}_{X.direction}_{X.avg_speed}" \
+                              f"_{X.component}_{X.num_trip}_{X.engine_conf}_{side}_{sensor}_{uid}.dat"
+                np.savetxt(matrix_path, dtw_matrix, delimiter = ";")
+                print("[{}] # ".format(time.ctime()) + "File Exported.")
