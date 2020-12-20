@@ -575,6 +575,9 @@ class Track(Trip):
                         ],
                     ).astype(np.int32)
 
+                for distance, sigma in echo_pred:
+                    if distance / (error_length * shared.samples_per_length[self.avg_speed]) > 1:
+                        pass
                 echo_detection = np.sum(echo_array) / N_echoes
                 prob_false_alarm = (N_prediction - N_weldings * prob_detection - N_echoes * echo_detection
                                     ) / N_prediction
