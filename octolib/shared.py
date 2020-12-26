@@ -1,7 +1,7 @@
 # TODO GitSecret Task
 
 # Versioning
-module_version = "0.5"
+module_version = "0.5.1"
 module_last_modified_data = "2020/12/15"
 verbose_mode = False
 
