@@ -4,19 +4,22 @@ Description: High-Level API to use pyOctopus functionality without accessing dir
 Rule: Define insulated function which acts literaly as a main() function.
 Author: Mario Ambrosino
 Date: 15/12/2020
-TODO: decouple from shared_parameters - develop a parameters data structure.
+
+TODO: decouple from shared_parameters - develop a parametric data structure.
 """
 
 # System Libraries
 import time
 import warnings
+
 # Third-Party Libraries
 import pandas as pd
+
+import octolib.clusters as clu
 # Project Libraries
 import octolib.metaframe as metaframe
 import octolib.shared as shared
 import octolib.track as track
-import octolib.clusters as clu
 
 warnings.filterwarnings('ignore')
 
@@ -185,23 +188,42 @@ def test_alignment_score(threshold: float = 0.7,
 
 
 def export_clusters():
+    """
+    Wrapper for export_all_clusters method for Cluster objects. It generates the "export/Clusters" folder's content.
+    Returns
+    -------
+    None
+    """
     meta = metaframe.MetaFrame(path_data = shared.DATASET_PATH, path_meta = shared.META_PATH)
     for identifier, uid in enumerate(meta.UUID):
-        X = clu.Cluster(uid)
-        X.export_all_clusters()
+        try:
+            X = clu.Cluster(uid)
+            X.export_all_clusters()
+        except KeyError:
+            print(f"[{time.ctime()}] # Key Error: Manual Bypass")
 
 
 def export_labeled_clu():
+    """
+    Print the clusters labeled by clustering algorithm stored into "export/Clusters" folder.
+    Returns
+    -------
+    None
+    """
     meta = metaframe.MetaFrame(path_data = shared.DATASET_PATH, path_meta = shared.META_PATH)
     for identifier, uid in enumerate(meta.UUID):
         X = clu.Cluster(uid)
         X.plot_labeled_clusters()
 
 
-def evaluate_clusters(start_from = 0):
+def evaluate_clusters(start_from = 0, mode = "sawp"):
     """
     Evaluates the DWT clusters and exports the image of the matrix obtained and the relative matrix in a csv file.
 
+    Parameters
+    ----------
+    mode: str = {"direct","sawp"}
+        Select feature representation.
     Returns
     -------
     None
@@ -211,17 +233,18 @@ def evaluate_clusters(start_from = 0):
     import numpy as np
     meta = metaframe.MetaFrame(path_data = shared.DATASET_PATH, path_meta = shared.META_PATH)
     for identifier, uid in enumerate(meta.UUID):
-        X = clu.Cluster(uid)
-        for side in X.sides:
-            for sensor in X.sensors:
-                print("[{}] # ".format(time.ctime()) + "Starting DTW Matrix Computation.")
-                dtw_matrix = X.dist_matrix(side = side, sensor = sensor, mode = "sawp")
-                fig = px.imshow(dtw_matrix)
-                image_path = f"images/DTW_matrices/DTW_{X.train}_{X.direction}_{X.avg_speed}" \
-                             f"_{X.component}_{X.num_trip}_{X.engine_conf}_{side}_{sensor}_{uid}.png"
-                fig.write_image(image_path)
-                print("[{}] # ".format(time.ctime()) + "Image Exported.")
-                matrix_path = f"export/DTW_matrices/DTW_{X.train}_{X.direction}_{X.avg_speed}" \
-                              f"_{X.component}_{X.num_trip}_{X.engine_conf}_{side}_{sensor}_{uid}.dat"
-                np.savetxt(matrix_path, dtw_matrix, delimiter = ";")
-                print("[{}] # ".format(time.ctime()) + "File Exported.")
+        if identifier > start_from:
+            X = clu.Cluster(uid)
+            for side in X.sides:
+                for sensor in X.sensors:
+                    print("[{}] # ".format(time.ctime()) + "Starting DTW Matrix Computation.")
+                    dtw_matrix = X.dist_matrix(side = side, sensor = sensor, mode = mode)
+                    fig = px.imshow(dtw_matrix)
+                    image_path = f"images/DTW_matrices/DTW_{X.train}_{X.direction}_{X.avg_speed}" \
+                                 f"_{X.component}_{X.num_trip}_{X.engine_conf}_{side}_{sensor}_{uid}.png"
+                    fig.write_image(image_path)
+                    print("[{}] # ".format(time.ctime()) + "Image Exported.")
+                    matrix_path = f"export/DTW_matrices/DTW_{X.train}_{X.direction}_{X.avg_speed}" \
+                                  f"_{X.component}_{X.num_trip}_{X.engine_conf}_{side}_{sensor}_{uid}.dat"
+                    np.savetxt(matrix_path, dtw_matrix, delimiter = ";")
+                    print("[{}] # ".format(time.ctime()) + "File Exported.")

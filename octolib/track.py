@@ -1,3 +1,12 @@
+"""
+Name: Track Module
+Description: Low-Level API to access and preprocess raw data.
+Author: Mario Ambrosino
+Date: 15/12/2020
+TODO: decouple from shared_parameters - develop a parameters data structure.
+"""
+
+
 import time
 
 import numpy as np
@@ -13,12 +22,21 @@ from octolib.utils import naive_integration, separator_parser, skiprow_logic
 
 
 class Track(Trip):
-    def __init__(self, uid, start = 0, stop = -1, pos_zero = 864):
+    def __init__(self, uid, start = 0, stop = -1, pos_zero = 0):
         """
-        Track Class, used to select a slice of a specific dataset.
-        :param uid: the unique identifier to select a specific dataset
-        :param start: start of the slice in the chosen dataset
-        :param stop: ending of the slice in the chosen dataset
+        Track Class, used to select a slice of a specific dataset and to modify the representation of data with some
+        educate guess about shifts and alignment of the data. Instances of this class hold the processing on data.
+
+        Parameters
+        ----------
+        uid: str
+            the unique identifier to select a specific dataset
+        start: int
+            start of the slice in the chosen dataset
+        stop: int
+            ending of the slice in the chosen dataset
+        pos_zero:
+            zero position (prototype to define the starting position from meta_data
         """
         super().__init__(uid)
 
@@ -55,7 +73,6 @@ class Track(Trip):
         self.total_pad = {side: sum([np.abs(value) for value in self.shifts[side]]) for side in self.sides}
 
         # Position here is relative to the start of the track. pos_zero takes account of the reference system.
-
         self.positions = {side: {sensor: None for sensor in self.sensors} for side in self.sides}
         self.reference_sensor = self.permutation_sensors["S"][self.reference_bearing]
         self.weldings_holder = np.array(
@@ -109,6 +126,19 @@ class Track(Trip):
         return (temp - temp.mean()).to_numpy()
 
     def preprocess_accelerations(self):
+        """
+        Preprocess Acceleration and write the relative attribute in the `self` object.
+
+        - Acquire Acceleration from Dataset;
+        - map Acceleration to a zero-mean signals;
+        - rearrange sensors in order to have them sorted in forward-moving ordering;
+        - Pad signals and align them with circular rolling of the signal;
+        - Align position to the signal linked to the reference bearing (provided by IVM ground truth)
+        - (Re)write position and accelerations attributes in self.
+        Returns
+        -------
+
+        """
         # Acquire Acceleration from dataset
         accelerations = pd.read_table(
             str(self.accel_path),
@@ -176,7 +206,11 @@ class Track(Trip):
     def get_speed(self):
         """
         Returns all the signals
-        :return: a numpy array containing a slice of all sensor signals
+
+        Returns
+        -------
+        speed: np.array
+            a numpy array containing a slice of all sensor signals
         """
         # print("Reading Speed Data from {}".format(self.vel_path))
         return pd.read_table(
@@ -188,8 +222,11 @@ class Track(Trip):
     def get_avg_previous_pos(self):
         """
         Returns the train position at the starting point
-        # LAST MODIFIED: Added pos_zero
-        :return: a numpy array containing a slice of all sensor signals
+
+        Returns
+        -------
+        speed: float
+            the previous position inferred in case one doesn't start from self.start = 0
         """
         ret_value = 0
         if self.start != 0:
@@ -208,7 +245,11 @@ class Track(Trip):
         """
         Generates a permutation mapping for sensor displacement in order to define north and south sensors in an
         automatic way. At the moment the bearing columns are fixed e.g. self.bearing_columns = [5,6,7,8,9,10,11,12]
-        :return: Dictionary with North, South and Inverse North, South mapping.
+
+        Returns
+        -------
+        bearings_dict: dict
+            Dictionary with North, South and Inverse North, South mapping.
         """
         north = None
         south = None
@@ -247,10 +288,21 @@ class Track(Trip):
         """
         Perform Wavelet Spectrum Density for a given column in a north_south decomposition of accelerations
         and then weights it with the defintion seen in Molodova et al. 2013.
+
         WARNING: High Memory usage. Use caution in storing it in memory
-        :param sensor: integer from 0 to 3
-        :param side: "N" or "S" - North or South side
-        :return: Weighted WSD
+
+        Parameters
+        ----------
+        side: str = {"N","S"}
+            North or South Side
+        sensor: int = {0,1,2,3}
+            Sensor ID
+
+        Returns
+        -------
+        SAWP_score: pandas.DataFrame
+            Weighted Sum over scales domain for Wavelet Density Spectrum (SAWP Score)
+
         """
         print("[{}] # ".format(time.ctime()) + "Starting WSD generation module.")
         # Wavelet Coefficients Calculation
@@ -272,15 +324,24 @@ class Track(Trip):
 
     def get_anomalies(self, side = "S", sensor = 0, threshold = shared.Z_SCORE_THRESHOLD, in_place = True):
         """
-        Perform Simple Anomaly detection with adaptive thresholding technique developed in November 2020.
-        METHODS:
-            - "Adan": Adaptive Threshold Bollinger's Band Anomaly Detector
-            - "FiZ": Fixed-Thresholded Z-score Anomaly Detector
-        :param in_place: if in_place = True -> write in object attributes
-        :param side: train side
-        :param sensor: index of the sensor
-        :param threshold: multiplicative factor to control severity in threshold
-        :return: if not in place anomalous_index and acceptance_band
+        Perform Simple Anomaly detection with Fixed-Thresholded Z-score.
+
+        Parameters
+        ----------
+        side: str = {"N","S"}
+            North or South Side
+        sensor: int = {0,1,2,3}
+            Sensor ID
+        threshold: float
+            Multiplicative factor to control severity in threshold
+        in_place: bool
+            if in_place = True -> write in object attributes
+
+        Returns
+        -------
+        anomalous_index: list(int)
+            if not in place anomalous_index
+
         """
         # Performs partial spectrum analysis
         self.get_wsd(side = side, sensor = sensor)
@@ -303,12 +364,24 @@ class Track(Trip):
 
     def get_z_score(self, side = "S", sensor: int = 0, threshold = shared.Z_SCORE_THRESHOLD, in_place = True):
         """
-        As alternative to Bollinger Band on SAWP score, try to use z-score here.
-        :param in_place: if in_place -> modifies object
-        :param side: train side
-        :param sensor: index of the sensor
-        :param threshold: multiplicative factor to control severity in threshold
-        :return: z_score
+        Compute WSD Z-Score to normalize the input
+
+        Parameters
+        ----------
+        side: str = {"N","S"}
+            North or South Side
+        sensor: int = {0,1,2,3}
+            Sensor ID
+        threshold: float
+            Multiplicative factor to control severity in threshold
+        in_place: bool
+            if in_place = True -> write in object attributes
+
+        Returns
+        -------
+        z-score: pandas.DataFrame
+
+
         """
         print("[{}] # ".format(time.ctime()) + "Z-score generation module started.")
         mean = self.wsd[side][sensor].fillna(value = 0).rolling(shared.WINDOW,
@@ -327,8 +400,6 @@ class Track(Trip):
     def plot_accelerations(self):
         """
         Plots the unsorted acceleration signals for a given trip.
-        :return: Nothing
-        TODO REFACTOR AFTER DICT REFACTORING
         """
         fig = make_subplots(rows = 8, cols = 1,
                             shared_xaxes = True,
@@ -373,6 +444,12 @@ class Track(Trip):
             )
 
     def plot_scores(self):
+        """
+        Plots the scores obtained for a given track.
+        Returns
+        -------
+
+        """
 
         fig = make_subplots(rows = 4, cols = 4,
                             shared_xaxes = True,
@@ -471,12 +548,20 @@ class Track(Trip):
                              metric = shared.CLUSTERING_METRICS
                              ):
         """
-        Uses DBSCAN to cluster point in the anomaly dataset and stores them in an ad-hoc dictionary
-        WARNING: To be performed after retrival of anomaly (self.get_anomalies)
-        :param eps: Max Distance from the density cluster;
-        :param min_samples: minimum number of points required to form a dense region;
-        :param metric: DBSCAN distance metric;
-        :return:
+        Wrapper for DBSCAN algorithm to cluster point in the anomaly dataset and stores them in an ad-hoc dictionary
+
+        Parameters
+        ----------
+        eps: float
+            Max Distance from the density cluster;
+        min_samples: int
+            Minimum number of points required to form a dense region;
+        metric: str
+            DBSCAN distance metric;
+
+        Returns
+        -------
+
         """
         print("[{}] # ".format(time.ctime()) + "Starting DBSCAN clustering.")
         for side in self.sides:
@@ -530,11 +615,21 @@ class Track(Trip):
 
         print("[{}] # ".format(time.ctime()) + "DBSCAN clustering Completed.")
 
-    def evaluate_prediction(self, mode = "Global", error_length = 3):
-        # OPTION ONE TODO use predict method for each of the dbscan predictor objects
-        # OPTION TWO (actual) use a custom metric based on distance from weldings
-        # WARNING: ASSUMING SHIFTING IS COMPLETED
-        print("[{}] # ".format(time.ctime()) + "Starting performance evaluation. MODE: {}".format(mode))
+    def evaluate_prediction(self, error_length = 3):
+        """
+        After clustering is completed (get_anomaly_clusters method), evaluates the quality of the alignment of the data.
+
+        Parameters
+        ----------
+        error_length: float
+            Range in meters on ground beyond which a predicted cluster isn't recognized as a welding in the distance
+            evaluation for them.
+        Returns
+        -------
+        Nothing
+
+        """
+        print("[{}] # ".format(time.ctime()) + "Starting performance evaluation.")
 
         for side in self.sides:
             for sensor in self.sensors:
@@ -591,9 +686,7 @@ class Track(Trip):
 
     def plot_clusters(self, ):
         """
-        Plots the cluster obtained
-        :return: Nothing
-        TODO REFACTOR AFTER DICT REFACTORING
+        Plots the cluster obtained.
         """
         fig = make_subplots(rows = 8, cols = 1,
                             shared_xaxes = True,

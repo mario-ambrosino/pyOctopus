@@ -1,5 +1,5 @@
 """
-Name: Octopus Module
+Name: Trip Module
 Description: contains classes which interacts directly with the file taken by IVM (acceleration files).
 Author: Mario Ambrosino
 Date: 15/12/2020
@@ -16,20 +16,40 @@ from octolib.metaframe import MetaFrame
 
 
 class Trip:
+    """
+    The Trip Class holds all the meta-data brought by IVM for a given track (identified by the uid present in
+    meta-frame) without modifying it. The metadata actually are encoded in the filenames, MetaFrame class extracts
+    that knowledge and Trip class represents it in memory.
+    """
     def extract_item(self, value):
         """
-        Extract value from dataframe with fixed uuid
-        :param value: column name of the value to extract
-        :return: string file containing the value
+        Extract item from dataframe with fixed uuid
+
+        Parameters
+        ----------
+        value: str
+            column name of the value to extract
+        Returns
+        -------
+        item_object: str
+            item extracted from metaframe object
         """
         return str(self.meta(uid = self.uuid, value = value))
 
     def extract_list(self, value, sep = ","):
         """
         Extract list from dataframe with fixed uuid
-        :param value: column name of the value to extract
-        :param sep: list separator
-        :return: list extracted from metaframe
+
+        Parameters
+        ----------
+        value: str
+            column name of the value to extract
+        sep: str
+            list separator
+        Returns
+        -------
+        list_object: list
+            list extracted from metaframe object
         """
         return [int(s) for s in (self.meta(uid = self.uuid, value = value))[1:-1].split(sep)]
 
@@ -40,7 +60,9 @@ class Trip:
         """
         # unique universal identifier for the given dataset
         self.uuid = str(uid)
+        # MetaFrame constructor
         self.meta = MetaFrame(path_meta = shared.META_PATH, path_data = shared.DATASET_PATH)
+
         # Trip metadata
         self.dataset = self.extract_item("Dataset")
         self.train = self.extract_item("Train")
@@ -52,6 +74,7 @@ class Trip:
         self.component = self.extract_item("Component")
         self.num_trip = self.extract_item("Num_Trip")
         self.pos_zero = shared.STARTING_POINT
+
         # Paths
         self.accel_path = self.extract_item("Accel_Path")
         self.scores_path = self.extract_item("Scores_Path")
