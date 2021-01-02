@@ -1,0 +1,20 @@
+#!/bin/bash
+# Mario Ambrosino - 2020/01/02
+
+# dist upgrade
+sudo apt-get update
+sudo apt-get upgrade
+
+# install python libraries
+sudo apt-get install python3.8 python3.8-dev python3-venv python3-pip
+
+python3 -m venv .env
+
+# overwrite local PYTHONPATH 
+echo'export PYTHONPATH=".env/bin/python3"' >> .env/bin/activate
+source .env/bin/activate
+
+
+# pip install
+pip3 install wheel cython
+pip3 install -r requirements.txt
