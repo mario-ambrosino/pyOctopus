@@ -438,7 +438,7 @@ class Track(Trip):
                 self.train, self.direction, self.avg_speed, self.component, self.uuid
                 ), showlegend = False)
 
-        fig.write_image("images/Vibration_T_{}_D_{}_S_{}_C_{}_U{}.png".format(
+        fig.write_image("private/images/Vibration_T_{}_D_{}_S_{}_C_{}_U{}.png".format(
             self.train, self.direction, self.avg_speed, self.component, self.uuid
             )
             )
@@ -535,7 +535,7 @@ class Track(Trip):
                 self.train, self.direction, self.avg_speed, self.component, self.uuid
                 ), showlegend = False)
         fig.update_xaxes(range = [0, 300])
-        fig.write_image("images/Scores_T_{}_D_{}_S_{}_C_{}_U{}.png".format(
+        fig.write_image("private/images/Scores_T_{}_D_{}_S_{}_C_{}_U{}.png".format(
             self.train, self.direction, self.avg_speed, self.component, self.uuid
             ))
         print("[{}] # ".format(time.ctime()) + "# Image Exported")
@@ -779,7 +779,7 @@ class Track(Trip):
                 self.train, self.direction, self.avg_speed, self.component, self.uuid
                 ), showlegend = False)
 
-        fig.write_image("images/CVIB_T_{}_D_{}_S_{}_C_{}_U{}.png".format(
+        fig.write_image("private/images/CVIB_T_{}_D_{}_S_{}_C_{}_U{}.png".format(
             self.train, self.direction, self.avg_speed, self.component, self.uuid
             )
             )

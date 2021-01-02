@@ -1,5 +1,5 @@
 clear
-listing = dir("../../export/Scores");
+listing = dir("../../export/private/Scores");
 shape_listing = size(listing);
 N_scores = shape_listing(1);
 results_table = table();

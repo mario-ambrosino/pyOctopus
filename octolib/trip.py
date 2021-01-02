@@ -3,6 +3,7 @@ Name: Trip Module
 Description: contains classes which interacts directly with the file taken by IVM (acceleration files).
 Author: Mario Ambrosino
 Date: 15/12/2020
+
 TODO: decouple from shared_parameters - develop a parameters data structure.
 """
 

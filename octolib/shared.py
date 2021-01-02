@@ -6,26 +6,42 @@ module_last_modified_data = "2020/12/15"
 verbose_mode = False
 
 # Path
-DATASET_PATH = "datasets"
-META_PATH = "export/meta.csv"
+DATA_PACKAGES_PATH = "private/data_packages"
+DATASET_PATH = "private/datasets"
+META_PATH = "public/export/meta.csv"
 
 # Sensor Parameters
 SAMPLING_FREQUENCY = 2000  # Hz
 
+# Folder
+
+folder_structure = [
+  "private",
+  "private/data_packages",
+  "private/datasets",
+  "private/export",
+  "private/export/Clusters",
+  "private/export/DTW_matrices",
+  "private/export/Scores",
+  "public",
+  "public/export"
+]
+
+
 # CWT  Parameters
 MIN_SCALE = 1  # Minimum Scale
-MAX_SCALE = 51  # Maximum Scale. WARNING! Choose it w.r.t. RAM footprint TODO method to choose MAX_SCALE properly
-SCALE_JUMP = 1  # Gap between scales
+MAX_SCALE = 201  # Maximum Scale. WARNING! Choose it w.r.t. RAM footprint TODO method to choose MAX_SCALE properly
+SCALE_JUMP = 2  # Gap between scales
 SCALES = list(range(MIN_SCALE, MAX_SCALE, SCALE_JUMP))  # Scales List
 WAVELET = "cmor1-1"  # Complex Morlet with Central Frequency and Central Width equal to 1
 # Window parameters
-WINDOW = 500  # Rolling Window Width for pandas moving average methods
+WINDOW = 450  # Rolling Window Width for pandas moving average methods
 WINDOW_TYPE = "hamming"  # Window-type for rolling and padding pandas algorithm.
 DISCRETE_WAVELET = "db4"
 SIGMA_DENOISING_FILTER = 0.2
 FILTER_THRESHOLD = len(SCALES)  # actually uses full spectrum to ease calculation
-SIGMA_TH = 2
-Z_SCORE_THRESHOLD = 2
+SIGMA_TH = 0.1
+Z_SCORE_THRESHOLD = 0.1
 STARTING_POINT = 864  # [m] - Reference Position
 
 # Mode
@@ -39,7 +55,7 @@ CLUSTERING_METRICS = "cityblock"
 CLUSTER_RADIUS = 256
 
 # GROUND WINDOW
-GROUND_WINDOW_DER = 0.5
+GROUND_WINDOW_DER = 0.9
 
 relative_ns_shift = {
     "N": {
