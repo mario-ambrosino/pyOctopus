@@ -11,7 +11,7 @@ TODO: decouple from shared_parameters - develop a parametric data structure.
 # System Libraries
 import time
 import warnings
-
+import os
 # Third-Party Libraries
 import pandas as pd
 
@@ -20,8 +20,25 @@ import octolib.clusters as clu
 import octolib.metaframe as metaframe
 import octolib.shared as shared
 import octolib.track as track
+import octolib.utils as utils
 
 warnings.filterwarnings('ignore')
+
+def init_workspace():
+    # init folder
+    utils.init_folder(folders = shared.folder_structure)
+    # download datasets
+    if len(os.listdir(shared.DATA_PACKAGES_PATH)) == 0:
+        utils.get_dataset(file_path = shared.DATA_PACKAGES_PATH)
+    # extract datasets
+    if len(os.listdir(shared.DATA_PACKAGES_PATH)) == 0:
+        for data_package in os.listdir(shared.DATASET_PATH):
+            utils.extract_data(input_path = os.path.join(shared.DATA_PACKAGES_PATH,data_package),
+                               output_path = shared.DATASET_PATH
+                               )
+    # metaframe evaluation
+    # test
+    pass
 
 
 def generate_vibration_images():
@@ -181,7 +198,8 @@ def test_alignment_score(threshold: float = 0.7,
                    "Min_Samples_Cluster", "Cluster_Metrics")
         export_df = pd.DataFrame(score_list, columns = columns)
         export_df.to_csv(
-            "export/scores_T{}_D{}_E{}_C{}_M{}.csv".format(threshold, detection_range, epsilon, min_samples_cluster,
+            "private/export/scores_T{}_D{}_E{}_C{}_M{}.csv".format(threshold, detection_range, epsilon,
+                                                                min_samples_cluster,
                                                            cluster_metrics, )
             )
     print("[{}] # ".format(time.ctime()) + "Score Generator Helper completed.")
@@ -244,7 +262,7 @@ def evaluate_clusters(start_from = 0, mode = "sawp"):
                                  f"_{X.component}_{X.num_trip}_{X.engine_conf}_{side}_{sensor}_{uid}.png"
                     fig.write_image(image_path)
                     print("[{}] # ".format(time.ctime()) + "Image Exported.")
-                    matrix_path = f"export/DTW_matrices/DTW_{X.train}_{X.direction}_{X.avg_speed}" \
+                    matrix_path = f"private/export/DTW_matrices/DTW_{X.train}_{X.direction}_{X.avg_speed}" \
                                   f"_{X.component}_{X.num_trip}_{X.engine_conf}_{side}_{sensor}_{uid}.dat"
                     np.savetxt(matrix_path, dtw_matrix, delimiter = ";")
                     print("[{}] # ".format(time.ctime()) + "File Exported.")

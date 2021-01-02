@@ -208,7 +208,7 @@ class MetaFrame:
             print(index, data_folder)
             list_meta.append(self.get_metadata(data_folder_path = "{}/{}".format(self.data, data_folder)))
         meta_frame = pd.concat(list_meta)
-        meta_frame.to_csv("export/{}.csv".format(name), index = False)
+        meta_frame.to_csv("public/export/{}.csv".format(name), index = False)
 
     def __init__(self, path_meta, path_data):
         """
@@ -288,3 +288,4 @@ class MetaFrame:
             else:
                 print("[{}] # ".format(time.ctime()) + "# ERROR: Out of Index".format(item))
                 pass  # TODO raise exception for wrong choice in column and adopt a proper behaviour
+

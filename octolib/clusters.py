@@ -28,7 +28,7 @@ class Cluster(track.Track):
     def load_clusterfile(self, side, sensor):
         # import label_file:
         labels = None
-        label_path = f"export/Clusters/{self.direction}/00{self.train}/{self.avg_speed}/Labels_" \
+        label_path = f"private/export/Clusters/{self.direction}/00{self.train}/{self.avg_speed}/Labels_" \
                      f"{self.uuid}_{self.train}_{self.direction}_{self.avg_speed}_{self.component}" \
                      f"_{self.num_trip}_{self.engine_conf}_{side}_{sensor}.json"
         if os.path.isfile(label_path):
@@ -255,7 +255,7 @@ class Cluster(track.Track):
                 export_side = {**export_side, **export_sensor}
             export_side = {side: export_side}
             export = {**export, **export_side}
-            file_path = f"export/Clusters/{self.direction}/00{self.train}/{self.avg_speed}/Cluster_" \
+            file_path = f"private/export/Clusters/{self.direction}/00{self.train}/{self.avg_speed}/Cluster_" \
                         f"{self.uuid}_{self.train}_{self.direction}_{self.avg_speed}_{self.component}" \
                         f"_{self.num_trip}_{self.engine_conf}.json"
             fp = open(file_path, "w")

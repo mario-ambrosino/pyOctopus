@@ -131,12 +131,6 @@ dmypy.json
 # Project local folders
 .empty
 .debris
-scrap
-log
-internal_docs
-internal_keys
-export/private
-images
-datasets
+private
 .idea
 .gitsecret/keys/random_seed

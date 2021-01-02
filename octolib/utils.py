@@ -9,6 +9,7 @@ TODO: decouple from shared_parameters - develop a parameters data structure.
 # System Libraries
 import os
 import zipfile
+import json
 
 # Third-Party Libraries
 import numpy as np
@@ -16,6 +17,46 @@ import pandas as pd
 from numpy.fft import *
 from scipy.signal import correlate as corr
 
+
+def get_dataset(file_path="private/data_packages"):
+    """
+    Method to retrive dataset for repository init
+    Parameters
+    ----------
+    file_path
+
+    Returns
+    -------
+
+    """
+    from mega import Mega
+    KEYS_FOLDER = "private/keys"
+    KEY_FILE = os.path.join(KEYS_FOLDER, "keys.json")
+    key_pointer = open(KEY_FILE, "r")
+    keyring = json.load(key_pointer)
+    repo = keyring["1"]["DATASET_REPOSITORY"]
+    data_key = keyring["1"]["KEY_REPOSITORY"]
+    data_name = keyring["1"]["DATASET_NAME"]
+    data_url = f"{repo}#{data_key}"
+    # login using a temporary anonymous account
+    mega = Mega()
+    m = mega.login()
+    m.download_url(url=data_url, dest_path = file_path, dest_filename = data_name)
+
+def init_folder(folders):
+    """
+    Generate the folders to quickstart the workspace
+    Parameters
+    ----------
+    folders: the folders file
+
+    Returns
+    -------
+
+    """
+    import pathlib
+    for folder in folders:
+        pathlib.Path(folder).mkdir(parents = True, exist_ok = True)
 
 def get_directory_structure(data_folder_path):
     """
