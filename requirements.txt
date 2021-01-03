@@ -8,7 +8,4 @@ setuptools
 
 fastdtw
 pywavelets
-<<<<<<< HEAD
 mega.py
-=======
->>>>>>> f162783be53073f1d912e6530af9d5da08b8f5b8
