@@ -1,0 +1,6 @@
+{
+	"Bearing_Columns" : [5,6,7,8,9,10,11,12],
+	"Reference_Bearing" : 5,
+	"Weldings" : [399, 6339, 12223, 18124, 24006, 29885, 35730, 41593, 47422],
+	"Wheel_Fault" : False
+}

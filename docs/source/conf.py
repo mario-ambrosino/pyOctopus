@@ -58,3 +58,11 @@ html_static_path = ['_static']
 # Mock modules
 autodoc_mock_imports = ["pywt"]
 
+# Autodoc configuration
+autodoc_default_options = {
+    'members': True,
+    'member-order': 'bysource',
+    'special-members': '__init__, __call__,__getitem__',
+    'undoc-members': True,
+    'exclude-members': '__weakref__'
+}

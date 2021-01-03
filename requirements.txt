@@ -1,3 +1,4 @@
+cython
 numpy
 pandas
 plotly
@@ -6,3 +7,5 @@ scikit-learn
 setuptools
 
 fastdtw
+pywavelets
+mega.py

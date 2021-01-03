@@ -1,12 +1,3 @@
-"""
-Name: meta_frame Module
-Description: contains functions which acts on the metadata of IVM files.
-Rule: Define insulated function which acts literaly as a main() function.
-Author: Mario Ambrosino
-Date: 15/12/2020
-TODO: decouple from shared_parameters - develop a parameters data structure.
-"""
-
 # System Libraries
 import json
 import os
@@ -25,7 +16,9 @@ from octolib.utils import get_directory_structure
 class MetaFrame:
     """
     Class containing MetaFrame methods - it enables to access in a viable way all the elements in the dataset folder
-    without knowing which is the structure.
+    without knowing which is the structure, i.e. acts on the metadata of IVM files. The general rule for this
+    class it define for each expected function of pyOctopus an insulated function which acts literaly as a main()
+    function.
 
     TODO: transform this class in a Singleton Class
     """
@@ -35,6 +28,7 @@ class MetaFrame:
         """
         Given a data_path, it extracts frame-data contained into it and construct a pandas DataFrame which contains
         every information about it. It should follow the convention chosen in the first release of datasets from IVM
+
         Parameters
         ----------
         data_folder_path: string
@@ -170,7 +164,8 @@ class MetaFrame:
                                             ).strip()
                                         ).strip()
                                 except IOError:
-                                    print("[{}] -".format(time.ctime()) + "Shift File not accessible")
+                                    # print("[{}] -".format(time.ctime()) + "Shift File not accessible")
+                                    pass
 
                                 processed_item = [uuid.uuid4(), dataset, direction, train, speed_category, component,
                                                   num_trip,
@@ -190,18 +185,13 @@ class MetaFrame:
 
     def export_metaframe(self, name):
         """
-        Access recursively to all the content of the folder and extracts DataFrame from each of the subfolders,
+        Access recursively to all the content of the dataset folder and extracts DataFrame from each of the subfolders,
         merging after all the frame-frame in a unique one.
 
         Parameters
         ----------
-        name: string
+        name: str
             Name of the csv file to be exported.
-
-        Returns
-        -------
-        Nothing - works directly on self object.
-
         """
         list_meta = []
         for index, data_folder in enumerate(os.listdir(self.data)):
@@ -213,7 +203,7 @@ class MetaFrame:
     def __init__(self, path_meta, path_data):
         """
         At execution of given modules, check if all works and prints credits, then loads the meta-frame.
-        # TODO: include setup.py and environment check.
+        TODO: merge with setup.py and environment check.
 
         Parameters
         ----------
@@ -228,14 +218,14 @@ class MetaFrame:
             print("# OCTOLIB_VERSION = {} - REFACTORED VERSION".format(shared.module_version))
             print("# LAST_MODIFIED = {}".format(shared.module_last_modified_data))
             print("# pyOctopus @ Octopus Project - MARIO AMBROSINO")
-        self.data = path_data
-        self.path = path_meta
+        self.data = path_data  #: Dataset Path
+        self.path = path_meta  #: Metaframe Path
         # Metadata Dataframe Uploaddata
         try:
-            self.frame = pd.read_csv(self.path)
-            self.columns = self.frame.columns
-            self.UUID = self.frame["ID"].values
-            self.num_datasets = len(self.frame.index)
+            self.frame = pd.read_csv(self.path)  #: pandas.DataFrame holding MetaFrame information
+            self.columns = self.frame.columns   #: list of the meta-features
+            self.UUID = self.frame["ID"].values  #: UUIDs in the metaframe
+            self.num_datasets = len(self.frame.index)  #: Number of available datasets in the metaframe
         except FileNotFoundError:
             print("[{}] # ".format(time.ctime()) + "Warning - Meta-frame not found.")
             print("[{}] # ".format(time.ctime()) +
@@ -247,16 +237,21 @@ class MetaFrame:
     def __call__(self, uid, value):
         """
         On call of the metaframe, give a selected value with a given UUID equal to "uid" and with a column equal to
-        "value".
+        "value". Note: polimorphism of uid input: if one uses a UUID string it will return the corresponding object
+        into the metaframe, while if you pass an integer as uid it will return the corresponding UUID indexed by the
+        integer in the metaframe used.
+
         Parameters
         ----------
-        uid: str, int
+
+        uid: (str, int)
              a UUID identifier from the meta-frame;
         value: str
              the column identier belonging to self.columns;
 
         Returns
         -------
+
         meta-data:
              the value stored into the meta-frame.
 
@@ -288,4 +283,3 @@ class MetaFrame:
             else:
                 print("[{}] # ".format(time.ctime()) + "# ERROR: Out of Index".format(item))
                 pass  # TODO raise exception for wrong choice in column and adopt a proper behaviour
-

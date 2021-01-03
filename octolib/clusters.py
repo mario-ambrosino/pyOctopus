@@ -1,10 +1,3 @@
-"""
-Cluster Module
-Description: Create, generate and handle Cluster objects.
-Author: Mario Ambrosino
-Date: 15/12/2020
-
-"""
 # Sys
 import os
 import time
@@ -24,11 +17,25 @@ from plotly.subplots import make_subplots
 
 
 class Cluster(track.Track):
-
+    """
+    Creates, generates and handles cluster objects.
+    """
     def load_clusterfile(self, side, sensor):
+        """
+        Loads cluster file, if available, generated from the last execution of
+        :meth:`octolib.helper.export_clusters()` helper method
+
+        Parameters
+        ----------
+        side: str = {"N","S"}
+            North or South Side
+        sensor: int = {0,1,2,3}
+            Sensor ID
+
+        """
         # import label_file:
         labels = None
-        label_path = f"private/export/Clusters/{self.direction}/00{self.train}/{self.avg_speed}/Labels_" \
+        label_path = f"export/Clusters/{self.direction}/00{self.train}/{self.avg_speed}/Labels_" \
                      f"{self.uuid}_{self.train}_{self.direction}_{self.avg_speed}_{self.component}" \
                      f"_{self.num_trip}_{self.engine_conf}_{side}_{sensor}.json"
         if os.path.isfile(label_path):
@@ -50,8 +57,10 @@ class Cluster(track.Track):
 
         Parameters
         ----------
+
         uid: the unique identifier to select a specific dataset;
         radius: the radius (in samples unit) from the center of the point of interest.
+
         """
         super().__init__(uid)
         self.get_all_anomalies()
@@ -83,6 +92,7 @@ class Cluster(track.Track):
 
         Parameters
         ----------
+
         side: int
             The side ("N" or "S") of the train;
         sensor: int
@@ -93,6 +103,7 @@ class Cluster(track.Track):
 
         Returns
         -------
+
         accel_slice: np.array
             The array slice for acceleration centered around the point of interest.
 
@@ -115,9 +126,6 @@ class Cluster(track.Track):
     def clean_clusters(self):
         """
         Clean the cluster from null slices.
-        Returns
-        -------
-
         """
         for side in self.sides:
             for sensor in self.sensors:
@@ -137,6 +145,7 @@ class Cluster(track.Track):
 
         Parameters
         ----------
+
         threshold : float
             multiplication factor for the decision boundary for anomaly score
         detection_range : float
@@ -150,10 +159,6 @@ class Cluster(track.Track):
             This includes the point itself.
         cluster_metrics : str
             The metric chosen for clustering in the set [‘cityblock’, ‘cosine’, ‘euclidean’, ‘l1’, ‘l2’, ‘manhattan’]
-
-        Returns
-        -------
-            Nothing, writes it into the super(Track) instance attributes
 
         """
         print("[{}] # ".format(time.ctime()) + "Init All Anomalies Calculation for clustering")
@@ -188,6 +193,7 @@ class Cluster(track.Track):
 
         Returns
         -------
+
         dtw_distance: float
             the DTW distance.
 
@@ -255,7 +261,7 @@ class Cluster(track.Track):
                 export_side = {**export_side, **export_sensor}
             export_side = {side: export_side}
             export = {**export, **export_side}
-            file_path = f"private/export/Clusters/{self.direction}/00{self.train}/{self.avg_speed}/Cluster_" \
+            file_path = f"export/Clusters/{self.direction}/00{self.train}/{self.avg_speed}/Cluster_" \
                         f"{self.uuid}_{self.train}_{self.direction}_{self.avg_speed}_{self.component}" \
                         f"_{self.num_trip}_{self.engine_conf}.json"
             fp = open(file_path, "w")
@@ -266,13 +272,9 @@ class Cluster(track.Track):
         """
         Dynamic Time Warp Distance Matrix between elements of a clustering class.
 
-        STATUS:
-        -------
-        Failure: the fastdtw routine is slow and leads to results which aren't useful at the moment. To be further
-        investigated.
-
         Parameters
         ----------
+
         side: str
             train side
         sensor: int
@@ -282,6 +284,7 @@ class Cluster(track.Track):
 
         Returns
         -------
+
         dtw_dist_matric: np.array(shape(n_signals,n_signals))
             a matrix with the distances betwee
 
@@ -305,8 +308,10 @@ class Cluster(track.Track):
                 samp_period = 1 / shared.SAMPLING_FREQUENCY, mode = "coeff"):
         """
         Returns Continuous Wavelet Transform. Wrapper for pywt function
+
         Parameters
         ----------
+
         side: str = {"N","S"}
             Side of the train
         sensor: int = {0,1,2,3}
@@ -324,6 +329,7 @@ class Cluster(track.Track):
 
         Returns
         -------
+
         wavelet_coeff: np.array
             2-dim array containing the complex values of the wavelet function calculated for the signal.
         wave_freq: np.array
@@ -350,8 +356,6 @@ class Cluster(track.Track):
     def plot_labeled_clusters(self):
         """
         Plots the cluster obtained
-        :return: Nothing
-        TODO REFACTOR AFTER DICT REFACTORING
         """
         fig = make_subplots(rows = 8, cols = 1,
                             shared_xaxes = True,
@@ -470,8 +474,10 @@ class Wave(Cluster):
     def __init__(self, uid, side, sensor, index):
         """
         Init Wave object
+
         Parameters
         ----------
+
         uid: str
             UUID-like string
         side: str = {"N","S"}
