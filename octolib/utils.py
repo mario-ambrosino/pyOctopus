@@ -1,9 +1,5 @@
 """
-Name: Utils Module
-Description: contains functions which could be useful for several classes.
-Author: Mario Ambrosino
-Date: 15/12/2020
-TODO: decouple from shared_parameters - develop a parameters data structure.
+contains functions which could be useful for several classes.
 """
 
 # System Libraries
@@ -18,16 +14,15 @@ from numpy.fft import *
 from scipy.signal import correlate as corr
 
 
-def get_dataset(file_path="private/data_packages"):
+def get_dataset(file_path = "private/data_packages"):
     """
     Method to retrive dataset for repository init
+
     Parameters
     ----------
-    file_path
 
-    Returns
-    -------
-
+    file_path: str
+        Path for data packages root folder.
     """
     from mega import Mega
     KEYS_FOLDER = "private/keys"
@@ -41,22 +36,23 @@ def get_dataset(file_path="private/data_packages"):
     # login using a temporary anonymous account
     mega = Mega()
     m = mega.login()
-    m.download_url(url=data_url, dest_path = file_path, dest_filename = data_name)
+    m.download_url(url = data_url, dest_path = file_path, dest_filename = data_name)
+
 
 def init_folder(folders):
     """
     Generate the folders to quickstart the workspace
+
     Parameters
     ----------
-    folders: the folders file
-
-    Returns
-    -------
+    folders: list(str)
+        the folders list
 
     """
     import pathlib
     for folder in folders:
         pathlib.Path(folder).mkdir(parents = True, exist_ok = True)
+
 
 def get_directory_structure(data_folder_path):
     """
@@ -65,11 +61,13 @@ def get_directory_structure(data_folder_path):
 
     Parameters
     ----------
-    data_folder_path: (string) The path to analyze
+    data_folder_path: (string)
+        The path to analyze
 
     Returns
     -------
-    directory: (dict) The dictionary which maps the information about the folder
+    directory: (dict)
+        The dictionary which maps the information about the folder
 
     """
     from functools import reduce
@@ -110,9 +108,9 @@ def signal_sync(reference, signal):
     """
     Returns the optimal shift to maximize correlation between reference signal and the analyzed signal to be shifted.
 
-    :return:
     Parameters
     ----------
+
     reference:
         Leading (static) signal;
     signal:
@@ -120,6 +118,7 @@ def signal_sync(reference, signal):
 
     Returns
     -------
+
     shift: int
         the shift for signal, corrected because of distorsion in correlation.
     """
@@ -131,16 +130,14 @@ def signal_sync(reference, signal):
 def extract_data(input_path, output_path):
     """
     Given a zipped dataset, extract it in output_path.
+
     Parameters
     ----------
+
     input_path: string
         The path of the zip file to be extracted
     output_path: string
         The path of the target folder for the extraction
-
-    Returns
-    -------
-
     """
     with zipfile.ZipFile(input_path, 'r') as zip_ref:
         zip_ref.extractall(output_path)
@@ -149,11 +146,13 @@ def extract_data(input_path, output_path):
 
 def skiprow_logic(index, start, end, step = 1):
     """
-    Function lambidified in pandas.read_csv() method to select certain slice of data
+    Function lambidified in ``pandas.read_csv()`` method to select certain slice of data
+
     Parameters
     ----------
+
     index: int
-        the column chosen. It is the main argument of skiprow_logic lambda function
+        the column chosen. It is the main argument of ``skiprow_logic`` lambda function
     start: int
         iloc starting position of the DataFrame
     end: int
@@ -163,6 +162,7 @@ def skiprow_logic(index, start, end, step = 1):
 
     Returns
     -------
+
     isSkipped: bool
         if the item should be skipped or not.
     """
@@ -175,14 +175,17 @@ def skiprow_logic(index, start, end, step = 1):
 
 def separator_parser(dataset):
     """
-    Provides a way to parse dataset with different separators
+    Provides a way to parse dataset with different separators.
+
     Parameters
     ----------
+
     dataset: str
         the name of the root folder, related to the dataset
 
     Returns
     -------
+
     separator: str
         the separator character
     """
@@ -197,6 +200,17 @@ def naive_integration(data):
     It simply make the cumulative sum of the data, performing a naive integration.
     In order to get better numerical result one could use three-point or five-point
     interpolation of the data or using spline approximation but at this point isn't necessary.
-    TODO: find better integration strategy, i.e. from from Numerical Methods course.
+
+    Parameters
+    ----------
+    data: iterable
+        the data generic array to be "integrated"
+
+    Returns
+    -------
+    integrated_data: numpy.ndarray
+        the data integrated.
+
+
     """
     return pd.DataFrame(np.cumsum(data)).to_numpy()

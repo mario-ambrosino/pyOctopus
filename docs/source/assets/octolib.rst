@@ -1,5 +1,6 @@
-octolib package
-===============
+=================
+Octolib Structure
+=================
 
 Submodules
 ----------

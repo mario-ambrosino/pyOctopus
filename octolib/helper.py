@@ -1,11 +1,6 @@
 """
-Name: Helper Module
-Description: High-Level API to use pyOctopus functionality without accessing directly the low-level modules.
-Rule: Define insulated function which acts literaly as a main() function.
-Author: Mario Ambrosino
-Date: 15/12/2020
-
-TODO: decouple from shared_parameters - develop a parametric data structure.
+High-Level API to use pyOctopus functionality without accessing directly the low-level modules. The general rule
+is to define insulated function which acts literaly as a main() function.
 """
 
 # System Libraries
@@ -24,16 +19,30 @@ import octolib.utils as utils
 
 warnings.filterwarnings('ignore')
 
+
 def init_workspace():
+    """
+    Workspace Initalization script. It will:
+
+    - init the folder structure;
+    - download and decrypt the "Rettilineo" dataset;
+    - extracts it into dataset folder;
+    - TODO: Evaluate the metaframe;
+    - TODO: run tests to assert the setup correctness.
+
+    In future, it will be embedded in the setup.py, after that my comprehension about Python packages will be solid
+    enough.
+
+    """
     # init folder
     utils.init_folder(folders = shared.folder_structure)
     # download datasets
     if len(os.listdir(shared.DATA_PACKAGES_PATH)) == 0:
         utils.get_dataset(file_path = shared.DATA_PACKAGES_PATH)
     # extract datasets
-    if len(os.listdir(shared.DATA_PACKAGES_PATH)) == 0:
-        for data_package in os.listdir(shared.DATASET_PATH):
-            utils.extract_data(input_path = os.path.join(shared.DATA_PACKAGES_PATH,data_package),
+    if len(os.listdir(shared.DATASET_PATH)) == 0:
+        for data_package in os.listdir(shared.DATA_PACKAGES_PATH):
+            utils.extract_data(input_path = os.path.join(shared.DATA_PACKAGES_PATH, data_package),
                                output_path = shared.DATASET_PATH
                                )
     # metaframe evaluation
@@ -43,11 +52,9 @@ def init_workspace():
 
 def generate_vibration_images():
     """
-    Generate Vibration Images with aligned track for all the item in the frame-frame, with weldings in black.
-    Returns
-    -------
-
+    Generate Vibration Images with aligned track for all the item in the meta-frame, with weldings in black.
     """
+    # loads the metaframe
     meta = metaframe.MetaFrame(path_data = shared.DATASET_PATH, path_meta = shared.META_PATH)
     for identifier, uid in enumerate(meta.UUID):
         X = track.Track(uid)
@@ -83,10 +90,6 @@ def automate_score_generation(
         A list of strings containing metrics to choose in [‘cityblock’, ‘cosine’, ‘euclidean’, ‘l1’, ‘l2’, ‘manhattan’]
     mode: string
         Execution mode: actually we're using grid_search but a random_search method is expected soon
-
-    Returns
-    -------
-
     """
     if mode == "grid_search":
         for threshold in threshold_set:
@@ -109,9 +112,9 @@ def automate_score_generation(
                                 )
 
 
-def test_alignment_score(threshold: float = 0.7,
-                         detection_range: float = 0.5,
-                         plot: bool = False,
+def test_alignment_score(threshold: float = 0.1,
+                         detection_range: float = 0.9,
+                         plot: bool = True,
                          export: bool = True,
                          epsilon: float = shared.CLUSTERING_EPS,
                          min_samples_cluster: int = shared.CLUSTERING_MS,
@@ -149,10 +152,6 @@ def test_alignment_score(threshold: float = 0.7,
         This includes the point itself.
     cluster_metrics : str
         The metric chosen for clustering in the set [‘cityblock’, ‘cosine’, ‘euclidean’, ‘l1’, ‘l2’, ‘manhattan’]
-
-    Returns
-    -------
-
     """
     score_list = []
     meta = metaframe.MetaFrame(path_data = shared.DATASET_PATH, path_meta = shared.META_PATH)
@@ -186,10 +185,10 @@ def test_alignment_score(threshold: float = 0.7,
                      cluster_metrics,
                      )
                     )
-    if plot:
-        X.plot_clusters()
-        X.plot_scores()
-        print("[{}] # ".format(time.ctime()) + "Scores Plot completed.")
+        if plot:
+            X.plot_clusters()
+            # X.plot_scores()
+            print("[{}] # ".format(time.ctime()) + "Scores Plot completed.")
 
     if export:
         # Generate Lists
@@ -198,9 +197,9 @@ def test_alignment_score(threshold: float = 0.7,
                    "Min_Samples_Cluster", "Cluster_Metrics")
         export_df = pd.DataFrame(score_list, columns = columns)
         export_df.to_csv(
-            "private/export/scores_T{}_D{}_E{}_C{}_M{}.csv".format(threshold, detection_range, epsilon,
-                                                                min_samples_cluster,
-                                                           cluster_metrics, )
+            "private/export/Scores/scores_T{}_D{}_E{}_C{}_M{}.csv".format(threshold, detection_range, epsilon,
+                                                                          min_samples_cluster,
+                                                                          cluster_metrics, )
             )
     print("[{}] # ".format(time.ctime()) + "Score Generator Helper completed.")
 
@@ -208,9 +207,6 @@ def test_alignment_score(threshold: float = 0.7,
 def export_clusters():
     """
     Wrapper for export_all_clusters method for Cluster objects. It generates the "export/Clusters" folder's content.
-    Returns
-    -------
-    None
     """
     meta = metaframe.MetaFrame(path_data = shared.DATASET_PATH, path_meta = shared.META_PATH)
     for identifier, uid in enumerate(meta.UUID):
@@ -224,9 +220,6 @@ def export_clusters():
 def export_labeled_clu():
     """
     Print the clusters labeled by clustering algorithm stored into "export/Clusters" folder.
-    Returns
-    -------
-    None
     """
     meta = metaframe.MetaFrame(path_data = shared.DATASET_PATH, path_meta = shared.META_PATH)
     for identifier, uid in enumerate(meta.UUID):
@@ -242,10 +235,6 @@ def evaluate_clusters(start_from = 0, mode = "sawp"):
     ----------
     mode: str = {"direct","sawp"}
         Select feature representation.
-    Returns
-    -------
-    None
-
     """
     import plotly.express as px
     import numpy as np

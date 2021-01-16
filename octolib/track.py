@@ -1,12 +1,3 @@
-"""
-Name: Track Module
-Description: Low-Level API to access and preprocess raw data.
-Author: Mario Ambrosino
-Date: 15/12/2020
-TODO: decouple from shared_parameters - develop a parameters data structure.
-"""
-
-
 import time
 
 import numpy as np
@@ -29,6 +20,7 @@ class Track(Trip):
 
         Parameters
         ----------
+
         uid: str
             the unique identifier to select a specific dataset
         start: int
@@ -58,7 +50,7 @@ class Track(Trip):
         self.permutation_sensors = self.get_dict_direction()
         # Holds bearing labels after rearranging
         self.bearings_labels = {
-            side: {key: value for (key, value) in self.permutation_sensors["I{}".format(side)].items()}
+            side: {key: value for (key, value) in self.permutation_sensors[f"I{side}"].items()}
             for side in self.sides}
 
         # Shifts
@@ -114,8 +106,14 @@ class Track(Trip):
 
     def get_acceleration(self):
         """
-        Returns all the accelerometric signals read by dataset indexed by the metaframe
-        :return: a NumPy array containing a slice of all sensor signals and without mean value
+        Returns all the accelerometric signals read by the dataset indexed by the metaframe
+
+        Returns
+        -------
+
+        acceleration: numpy.ndarray
+            a NumPy array containing a slice of all sensor signals and without mean value
+
         """
         # print("Reading Acceleration Data from {}".format(self.accel_path))
         temp = pd.read_table(
@@ -135,9 +133,6 @@ class Track(Trip):
         - Pad signals and align them with circular rolling of the signal;
         - Align position to the signal linked to the reference bearing (provided by IVM ground truth)
         - (Re)write position and accelerations attributes in self.
-        Returns
-        -------
-
         """
         # Acquire Acceleration from dataset
         accelerations = pd.read_table(
@@ -205,10 +200,12 @@ class Track(Trip):
 
     def get_speed(self):
         """
-        Returns all the signals
+        Return speed signals. Please note: the speed for "Ritorno" direction-labeled track were retrieved with
+        averaged evaluation of speed. This will introduce uncertainty on localization of data to be quantified properly.
 
         Returns
         -------
+
         speed: np.array
             a numpy array containing a slice of all sensor signals
         """
@@ -225,6 +222,7 @@ class Track(Trip):
 
         Returns
         -------
+
         speed: float
             the previous position inferred in case one doesn't start from self.start = 0
         """
@@ -248,6 +246,7 @@ class Track(Trip):
 
         Returns
         -------
+
         bearings_dict: dict
             Dictionary with North, South and Inverse North, South mapping.
         """
@@ -261,9 +260,9 @@ class Track(Trip):
                 south = {(index if index % 2 == 0 else None): int(3 - (index - 6) / 2) for index in
                          self.bearing_columns}
             elif self.direction == "Ritorno":
-                north = {(index if index % 2 == 1 else None): int(3 - (index - 5) / 2) for index in
+                north = {(index if index % 2 == 1 else None): int(0 + (index - 5) / 2) for index in
                          self.bearing_columns}
-                south = {(index if index % 2 == 0 else None): int(3 - (index - 6) / 2) for index in
+                south = {(index if index % 2 == 0 else None): int(0 + (index - 6) / 2) for index in
                          self.bearing_columns}
         elif self.train == "7":
             if self.direction == "Andata":
@@ -272,9 +271,9 @@ class Track(Trip):
                 south = {(index if index % 2 == 1 else None): int(0 + (index - 5) / 2) for index in
                          self.bearing_columns}
             elif self.direction == "Ritorno":
-                north = {(index if index % 2 == 1 else None): int(3 - (index - 5) / 2) for index in
+                north = {(index if index % 2 == 0 else None): int(3 - (index - 6) / 2) for index in
                          self.bearing_columns}
-                south = {(index if index % 2 == 0 else None): int(3 - (index - 6) / 2) for index in
+                south = {(index if index % 2 == 1 else None): int(3 - (index - 5) / 2) for index in
                          self.bearing_columns}
 
         # inverse dictionary
@@ -293,6 +292,7 @@ class Track(Trip):
 
         Parameters
         ----------
+
         side: str = {"N","S"}
             North or South Side
         sensor: int = {0,1,2,3}
@@ -300,6 +300,7 @@ class Track(Trip):
 
         Returns
         -------
+
         SAWP_score: pandas.DataFrame
             Weighted Sum over scales domain for Wavelet Density Spectrum (SAWP Score)
 
@@ -328,6 +329,7 @@ class Track(Trip):
 
         Parameters
         ----------
+
         side: str = {"N","S"}
             North or South Side
         sensor: int = {0,1,2,3}
@@ -339,6 +341,7 @@ class Track(Trip):
 
         Returns
         -------
+
         anomalous_index: list(int)
             if not in place anomalous_index
 
@@ -368,6 +371,7 @@ class Track(Trip):
 
         Parameters
         ----------
+
         side: str = {"N","S"}
             North or South Side
         sensor: int = {0,1,2,3}
@@ -379,8 +383,8 @@ class Track(Trip):
 
         Returns
         -------
-        z-score: pandas.DataFrame
 
+        z-score: pandas.DataFrame
 
         """
         print("[{}] # ".format(time.ctime()) + "Z-score generation module started.")
@@ -445,10 +449,7 @@ class Track(Trip):
 
     def plot_scores(self):
         """
-        Plots the scores obtained for a given track.
-        Returns
-        -------
-
+        Plots the scores obtained for a given track. To be performed after
         """
 
         fig = make_subplots(rows = 4, cols = 4,
@@ -552,15 +553,13 @@ class Track(Trip):
 
         Parameters
         ----------
+
         eps: float
             Max Distance from the density cluster;
         min_samples: int
             Minimum number of points required to form a dense region;
         metric: str
             DBSCAN distance metric;
-
-        Returns
-        -------
 
         """
         print("[{}] # ".format(time.ctime()) + "Starting DBSCAN clustering.")
@@ -621,12 +620,10 @@ class Track(Trip):
 
         Parameters
         ----------
+
         error_length: float
             Range in meters on ground beyond which a predicted cluster isn't recognized as a welding in the distance
             evaluation for them.
-        Returns
-        -------
-        Nothing
 
         """
         print("[{}] # ".format(time.ctime()) + "Starting performance evaluation.")
